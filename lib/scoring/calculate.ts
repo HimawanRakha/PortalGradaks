@@ -1,22 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import { SETTING_KEYS } from "./setting-keys";
 
-/**
- * Shared with prisma/seed.ts so the default weights it seeds and the keys
- * this engine reads can never drift apart. Every one of these is editable
- * later from /admin/master-data without a code change.
- */
-export const SETTING_KEYS = {
-  attendancePersonal: "weights.attendance.personal",
-  attendanceSkill: "weights.attendance.skill",
-  logbookPersonal: "weights.logbook.personal",
-  logbookSkill: "weights.logbook.skill",
-  k1Skill: "weights.k1.skill",
-  k2Skill: "weights.k2.skill",
-  calibrationThreshold: "calibration.deviationThreshold",
-  damenEnabled: "verification.damenEnabled",
-  marsPassThreshold: "mars.passThreshold",
-} as const;
+export { SETTING_KEYS };
 
 export type WeightedItem = {
   label: string;

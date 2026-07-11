@@ -10,18 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 
 import { updateSettingsAction } from "@/app/(dashboard)/admin/master-data/actions";
-
-const SETTING_KEYS = {
-  attendancePersonal: "weights.attendance.personal",
-  attendanceSkill: "weights.attendance.skill",
-  logbookPersonal: "weights.logbook.personal",
-  logbookSkill: "weights.logbook.skill",
-  k1Skill: "weights.k1.skill",
-  k2Skill: "weights.k2.skill",
-  calibrationThreshold: "calibration.deviationThreshold",
-  damenEnabled: "verification.damenEnabled",
-  marsPassThreshold: "mars.passThreshold",
-} as const;
+import { SETTING_KEYS } from "@/lib/scoring/setting-keys";
 
 type SettingData = {
   key: string;
@@ -32,7 +21,7 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
   const [pending, startTransition] = useTransition();
 
   // Create local states based on initialSettings mapping
-  const getSettingValue = (key: string, fallback: any) => {
+  const getSettingValue = (key: string, fallback: number | boolean) => {
     const s = initialSettings.find((x) => x.key === key);
     return s !== undefined ? s.value : fallback;
   };

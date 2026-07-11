@@ -24,7 +24,7 @@ export default async function ParametersPage() {
     maxValue: param.maxValue,
     inputMethod: param.inputMethod,
     order: param.order,
-    rubricAnchors: param.rubricAnchors,
+    rubricAnchors: param.rubricAnchors as Record<string, string> | null,
     active: param.active,
     material: {
       id: param.material.id,

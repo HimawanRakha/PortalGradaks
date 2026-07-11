@@ -1,16 +1,28 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Inter: body text — chosen for legibility at the small dense-table sizes
+// this dashboard leans on heavily (stat cards, matrices, score grids).
+const fontSans = Inter({
+  variable: "--font-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+// Plus Jakarta Sans: headings/titles only (CardTitle, DialogTitle,
+// SheetTitle already apply `font-heading` — see components/ui/card.tsx).
+// Distinct weight/character from the body face on purpose, for hierarchy.
+const fontHeading = Plus_Jakarta_Sans({
+  variable: "--font-heading",
+  subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+});
+
+const fontMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
 });
 
@@ -31,13 +43,16 @@ export default function RootLayout({
     <html
       lang="id"
       data-scroll-behavior="smooth"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${fontSans.variable} ${fontHeading.variable} ${fontMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <TooltipProvider delay={200}>
-          {children}
-          <Toaster richColors position="top-center" />
-        </TooltipProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <TooltipProvider delay={200}>
+            {children}
+            <Toaster richColors position="top-center" />
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

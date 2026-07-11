@@ -18,7 +18,7 @@ import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../app/generated/prisma/client";
 import { Role, ParameterType, InputMethod, SessionMode, AttendanceStatus, LogbookStatus, ScoreSource, QuestionnaireCode } from "../app/generated/prisma/enums";
-import { SETTING_KEYS } from "../lib/scoring/calculate";
+import { SETTING_KEYS } from "../lib/scoring/setting-keys";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });

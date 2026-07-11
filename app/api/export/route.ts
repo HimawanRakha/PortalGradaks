@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
@@ -7,13 +6,13 @@ import { Role, AttendanceStatus } from "@/app/generated/prisma/enums";
 export async function GET(request: Request) {
   try {
     // Assert the caller is Admin / PSDM
-    const user = await assertRole(Role.ADMIN);
+    await assertRole(Role.ADMIN);
 
     const { searchParams } = new URL(request.url);
     const exportType = searchParams.get("type") || "main";
 
     // 1. Fetch all data needed for excel calculation
-    const [students, parameters, activities, departments] = await Promise.all([
+    const [students, parameters, departments] = await Promise.all([
       prisma.student.findMany({
         where: { active: true },
         include: {
@@ -35,7 +34,6 @@ export async function GET(request: Request) {
         include: { material: { include: { activity: true } } },
         orderBy: [{ material: { activity: { order: "asc" } } }, { material: { order: "asc" } }, { order: "asc" }],
       }),
-      prisma.activity.findMany({ orderBy: { order: "asc" } }),
       prisma.department.findMany({
         include: {
           students: {
@@ -138,7 +136,7 @@ export async function GET(request: Request) {
       ];
 
       students.forEach((student) => {
-        const rowData: any = {
+        const rowData: Record<string, string | number> = {
           nrp: student.nrp,
           name: student.name,
           region: student.unit.region.name,
@@ -220,6 +218,73 @@ export async function GET(request: Request) {
           code: dept.code,
           name: dept.name,
           mabaCount: dept.students.length,
+        });
+      });
+
+      // ==========================================
+      // SHEET 5: REKAP PER UNIT/REGION
+      // ==========================================
+      const sheet5 = workbook.addWorksheet("Rekap Unit-Region");
+      sheet5.columns = [
+        { header: "Region", key: "region", width: 20 },
+        { header: "Unit", key: "unit", width: 20 },
+        { header: "Total Maba", key: "total", width: 14 },
+        { header: "Rata-rata Nilai Mentah", key: "avgRaw", width: 20 },
+        { header: "Jumlah Input Nilai", key: "scoreCount", width: 18 },
+      ];
+      const unitAgg = new Map<string, { region: string; unit: string; total: number; sum: number; count: number }>();
+      students.forEach((student) => {
+        const key = student.unit.id;
+        const entry = unitAgg.get(key) ?? { region: student.unit.region.name, unit: student.unit.name, total: 0, sum: 0, count: 0 };
+        entry.total += 1;
+        for (const score of student.scores) {
+          if (score.value !== null) {
+            entry.sum += score.value;
+            entry.count += 1;
+          }
+        }
+        unitAgg.set(key, entry);
+      });
+      Array.from(unitAgg.values())
+        .sort((a, b) => a.region.localeCompare(b.region) || a.unit.localeCompare(b.unit))
+        .forEach((entry) => {
+          sheet5.addRow({
+            region: entry.region,
+            unit: entry.unit,
+            total: entry.total,
+            avgRaw: entry.count > 0 ? Number((entry.sum / entry.count).toFixed(2)) : "",
+            scoreCount: entry.count,
+          });
+        });
+
+      // ==========================================
+      // SHEET 6: CODEBOOK (DATA DICTIONARY)
+      // ==========================================
+      const sheet6 = workbook.addWorksheet("Codebook");
+      sheet6.columns = [
+        { header: "Nama Kolom (Wide)", key: "column", width: 25 },
+        { header: "Kegiatan", key: "activity", width: 20 },
+        { header: "Materi", key: "material", width: 20 },
+        { header: "Kode Sub", key: "subCode", width: 10 },
+        { header: "Nama Parameter", key: "parameter", width: 30 },
+        { header: "Tipe", key: "type", width: 8 },
+        { header: "Metode Input", key: "inputMethod", width: 14 },
+        { header: "Nilai Maks", key: "maxValue", width: 10 },
+        { header: "Bobot Personal", key: "personalWeight", width: 14 },
+        { header: "Bobot Keahlian", key: "skillWeight", width: 14 },
+      ];
+      parameters.forEach((p) => {
+        sheet6.addRow({
+          column: `${p.material.code}_${p.subCode}`,
+          activity: p.material.activity.name,
+          material: p.material.name,
+          subCode: p.subCode,
+          parameter: p.name,
+          type: p.type,
+          inputMethod: p.inputMethod,
+          maxValue: p.maxValue,
+          personalWeight: p.personalWeight !== null ? Number(p.personalWeight) : "",
+          skillWeight: p.skillWeight !== null ? Number(p.skillWeight) : "",
         });
       });
     }

@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { History, User, FileText, Database, Activity } from "lucide-react";
+import { History, User, Database } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
 import { Role } from "@/app/generated/prisma/enums";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 export const metadata: Metadata = { title: "Log Aktivitas - Admin" };
 
@@ -33,7 +32,7 @@ export default async function ActivityLogPage() {
     }
   };
 
-  const formatValue = (val: any) => {
+  const formatValue = (val: unknown) => {
     if (val === null || val === undefined) return "NULL";
     if (typeof val === "object") return JSON.stringify(val);
     return String(val);

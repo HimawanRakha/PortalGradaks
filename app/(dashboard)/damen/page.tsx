@@ -34,7 +34,7 @@ export default async function DamenHomePage() {
 
       <Card>
         <CardContent className="py-5">
-          <Button render={<Link href="/damen/verification" />}>
+          <Button nativeButton={false} render={<Link href="/damen/verification" />}>
             <CheckSquare className="size-4" />
             Buka Verifikasi Akhir
           </Button>

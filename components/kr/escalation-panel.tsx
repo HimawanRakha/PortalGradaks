@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { toast } from "sonner";
 import { Loader2, Flag, CheckSquare, History, User } from "lucide-react";
 import { FlagStatus } from "@/app/generated/prisma/enums";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { resolveFlagAction } from "@/app/(dashboard)/kepala-region/actions";

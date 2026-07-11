@@ -50,7 +50,7 @@ export function MaterialsManager({
   initialMaterials: MaterialData[];
   activities: ActivityOption[];
 }) {
-  const [materials, setMaterials] = useState<MaterialData[]>(initialMaterials);
+  const [materials] = useState<MaterialData[]>(initialMaterials);
   const [pending, startTransition] = useTransition();
 
   const [isOpen, setIsOpen] = useState(false);

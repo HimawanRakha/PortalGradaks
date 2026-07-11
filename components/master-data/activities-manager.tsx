@@ -46,7 +46,7 @@ type ActivityData = {
 };
 
 export function ActivitiesManager({ initialActivities }: { initialActivities: ActivityData[] }) {
-  const [activities, setActivities] = useState<ActivityData[]>(initialActivities);
+  const [activities] = useState<ActivityData[]>(initialActivities);
   const [pending, startTransition] = useTransition();
 
   // Activity Modal State

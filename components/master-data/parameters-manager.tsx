@@ -34,7 +34,7 @@ type ParameterData = {
   maxValue: number;
   inputMethod: InputMethod;
   order: number;
-  rubricAnchors: any;
+  rubricAnchors: Record<string, string> | null;
   active: boolean;
   material: {
     id: string;
@@ -62,7 +62,7 @@ export function ParametersManager({
   initialParameters: ParameterData[];
   materials: MaterialOption[];
 }) {
-  const [parameters, setParameters] = useState<ParameterData[]>(initialParameters);
+  const [parameters] = useState<ParameterData[]>(initialParameters);
   const [filterMaterialId, setFilterMaterialId] = useState<string>("ALL");
   const [pending, startTransition] = useTransition();
 

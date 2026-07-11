@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Scale, CheckCircle2, AlertTriangle, AlertCircle, TrendingUp, Info } from "lucide-react";
+import { CheckCircle2, AlertTriangle, AlertCircle, TrendingUp, Info } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
 import { Role, ParameterType } from "@/app/generated/prisma/enums";

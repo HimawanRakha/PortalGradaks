@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, UploadCloud, AlertCircle, CheckCircle2, FileText, Info } from "lucide-react";
+import { Loader2, UploadCloud, Info } from "lucide-react";
 import { ImportType } from "@/app/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { importCsvAction } from "@/app/(dashboard)/admin/actions";
 
 const SCHEMAS: Record<ImportType, { title: string; cols: string[]; desc: string; sample: string }> = {
+  [ImportType.STUDENTS]: {
+    title: "Daftar Maba (Bootstrap Awal)",
+    cols: ["nrp", "name", "unit_code", "department_code"],
+    desc: "Mendaftarkan atau memperbarui data induk mahasiswa baru — unit_code harus sudah ada di Master Data.",
+    sample: "nrp,name,unit_code,department_code\n2512345678,Budi Santoso,R01-U01,DEP1\n2598765432,Citra Wijaya,R01-U01,DEP2",
+  },
+  [ImportType.ACCOUNTS]: {
+    title: "Daftar Akun (Mentor/KR/Damen)",
+    cols: ["nrp", "name", "role", "unit_code", "region_code", "password"],
+    desc: "Membuat akun baru. role = ADMIN/KEPALA_REGION/MENTOR/DAMEN. Tidak akan menimpa password akun yang sudah ada.",
+    sample: "nrp,name,role,unit_code,region_code,password\nmentor.r01-u02,Mentor Baru,MENTOR,R01-U02,,gradaks2026",
+  },
   [ImportType.PERSONALITY]: {
     title: "Profil Kepribadian (MBTI)",
     cols: ["nrp", "mbtiType", "temperament"],
@@ -32,37 +44,38 @@ const SCHEMAS: Record<ImportType, { title: string; cols: string[]; desc: string;
   [ImportType.LOGBOOK]: {
     title: "Logbook Kegiatan Maba",
     cols: ["nrp", "periodLabel", "content"],
-    desc: "Mengimpor isi logbook mingguan yang ditulis maba dari GForm.",
+    desc: "Mengimpor isi logbook mingguan yang ditulis maba dari GForm — setiap baris jadi entri baru untuk diverifikasi mentor.",
     sample: "nrp,periodLabel,content\n2512345678,Minggu 1,Hari ini saya belajar dasar programming...\n2598765432,Minggu 1,Melakukan perkenalan unit mentoring...",
+  },
+  [ImportType.POST_TEST]: {
+    title: "Nilai Post-test (Tipe D)",
+    cols: ["nrp", "activity_code", "material_code", "parameter_subcode", "value"],
+    desc: "Mengimpor nilai post-test/pengujian ke parameter yang sudah ada di Master Data (mis. Wawasan FTEIC).",
+    sample: "nrp,activity_code,material_code,parameter_subcode,value\n2512345678,INCLENATION,WAWASAN_FTEIC,D1,88",
   },
   [ImportType.PROKER]: {
     title: "Presensi Proker Fakultas",
-    cols: ["nrp", "prokerCode", "status"],
+    cols: ["nrp", "session_code", "status"],
     desc: "Mengimpor data kehadiran maba di proker fakultas (PESRAF, ARUS_EMAS, SOSCOM, DIESNAT).",
-    sample: "nrp,prokerCode,status\n2512345678,PESRAF,HADIR\n2598765432,PESRAF,ALPA\n2512345678,ARUS_EMAS,IZIN",
+    sample: "nrp,session_code,status\n2512345678,PESRAF,HADIR\n2598765432,PESRAF,ALPA\n2512345678,ARUS_EMAS,IZIN",
   },
-  // Placeholders not used by standard import pages directly
-  [ImportType.STUDENTS]: { title: "Daftar Maba", cols: ["nrp", "name"], desc: "", sample: "" },
-  [ImportType.ACCOUNTS]: { title: "Daftar Akun", cols: ["nrp", "name"], desc: "", sample: "" },
-  [ImportType.POST_TEST]: { title: "Post Test", cols: [], desc: "", sample: "" },
 };
 
-type MismatchRow = {
-  rowNumber: number;
-  nrp: string;
-  reason: string;
+const IMPORT_TYPE_LABELS: Record<ImportType, string> = {
+  [ImportType.STUDENTS]: "Daftar Maba (Bootstrap)",
+  [ImportType.ACCOUNTS]: "Daftar Akun",
+  [ImportType.PERSONALITY]: "Profil Kepribadian (MBTI & Temperament)",
+  [ImportType.BASELINE_K1]: "Kuesioner Baseline (K1)",
+  [ImportType.REFLECTION_K2]: "Kuesioner Refleksi (K2)",
+  [ImportType.LOGBOOK]: "Logbook Mingguan Maba",
+  [ImportType.POST_TEST]: "Nilai Post-test",
+  [ImportType.PROKER]: "Kehadiran Proker Fakultas",
 };
 
 export function ImportUploader() {
   const [importType, setImportType] = useState<ImportType>(ImportType.PERSONALITY);
   const [file, setFile] = useState<File | null>(null);
   const [pending, startTransition] = useTransition();
-
-  // Results State
-  const [hasResult, setHasResult] = useState(false);
-  const [totalRows, setTotalRows] = useState(0);
-  const [successCount, setSuccessCount] = useState(0);
-  const [failedRows, setFailedRows] = useState<MismatchRow[]>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -88,15 +101,9 @@ export function ImportUploader() {
         const result = await importCsvAction(importType, file.name, text);
         if (result.ok) {
           toast.success(result.summary || "Impor berhasil diselesaikan.");
-          
-          // Re-fetch database import details or manually compute from log
-          // To keep it immediate, we reload window or query import status.
-          // Let's force reload window after 2.5s so they see the logs, or display client state.
-          // Since we want to display the reports immediately on the client side:
-          // Let's do a trick: we can query the latest import records in the parent page and show them.
-          // Or we can parse the CSV on client first and check. But doing it on the server is safer.
-          // Let's let the page reload to refresh the import logs at the bottom.
-          setHasResult(true);
+          // Batch + per-row report is shown in the history list below this
+          // uploader (rendered by the parent Server Component), so a router
+          // refresh is enough to reveal it — no local result state needed.
           window.location.reload();
         } else {
           toast.error(result.error);
@@ -118,16 +125,16 @@ export function ImportUploader() {
         <CardContent className="space-y-4">
           <div className="grid gap-2">
             <Label htmlFor="import-type" className="font-semibold">Jenis Data Impor</Label>
-            <Select value={importType} onValueChange={(val) => setImportType(val as ImportType)}>
+            <Select value={importType} onValueChange={(val) => val && setImportType(val as ImportType)}>
               <SelectTrigger id="import-type" className="w-[280px]">
                 <SelectValue placeholder="Pilih Jenis Data" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ImportType.PERSONALITY}>Profil Kepribadian (MBTI & Temperament)</SelectItem>
-                <SelectItem value={ImportType.BASELINE_K1}>Kuesioner Baseline (K1)</SelectItem>
-                <SelectItem value={ImportType.REFLECTION_K2}>Kuesioner Refleksi (K2)</SelectItem>
-                <SelectItem value={ImportType.LOGBOOK}>Logbook Mingguan Maba</SelectItem>
-                <SelectItem value={ImportType.PROKER}>Kehadiran Proker Fakultas</SelectItem>
+                {(Object.keys(IMPORT_TYPE_LABELS) as ImportType[]).map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {IMPORT_TYPE_LABELS[type]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

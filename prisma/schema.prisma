@@ -400,6 +400,8 @@ model Attendance {
   enteredBy          User?            @relation("AttendanceEnteredBy", fields: [enteredByUserId], references: [id])
   enteredByUserId    String?
   source             ScoreSource      @default(MENTOR)
+  import             Import?          @relation(fields: [importId], references: [id])
+  importId           String?
   createdAt          DateTime         @default(now())
   updatedAt          DateTime         @updatedAt
 
@@ -428,6 +430,7 @@ model Import {
 
   rows                  ImportRow[]
   scores                Score[]
+  attendances           Attendance[]
   logbookEntries        LogbookEntry[]
   questionnaireStatuses QuestionnaireStatus[]
   personalityProfiles   PersonalityProfile[]

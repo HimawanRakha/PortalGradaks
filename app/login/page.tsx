@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { GraduationCap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = {
-  title: "Masuk — Portal Pengembangan MABA 26",
+  title: "Masuk",
 };
 
 const DEMO_ACCOUNTS = [
@@ -15,7 +16,10 @@ const DEMO_ACCOUNTS = [
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/40 p-4">
+    <div className="relative flex min-h-svh flex-col items-center justify-center gap-6 bg-muted/40 p-4">
+      <div className="absolute right-4 top-4">
+        <ThemeToggle />
+      </div>
       <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="flex flex-col items-center gap-2 text-center">
           <div className="flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">

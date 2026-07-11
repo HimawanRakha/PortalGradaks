@@ -23,7 +23,7 @@ type SessionScheduleData = {
 };
 
 export function ScheduleManager({ initialSessions }: { initialSessions: SessionScheduleData[] }) {
-  const [sessions, setSessions] = useState<SessionScheduleData[]>(initialSessions);
+  const [sessions] = useState<SessionScheduleData[]>(initialSessions);
   const [pending, startTransition] = useTransition();
 
   // State to hold unsaved inputs for each session id

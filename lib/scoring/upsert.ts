@@ -73,8 +73,9 @@ export async function upsertAttendance(params: {
   mode: "ONLINE" | "OFFLINE" | "NA";
   actorUserId: string;
   source?: ScoreSource;
+  importId?: string | null;
 }) {
-  const { studentId, sessionId, status, participationScore, mode, actorUserId } = params;
+  const { studentId, sessionId, status, participationScore, mode, actorUserId, importId } = params;
   const source = params.source ?? ScoreSource.MENTOR;
   const where = { studentId_sessionId: { studentId, sessionId } };
 
@@ -82,8 +83,8 @@ export async function upsertAttendance(params: {
 
   const attendance = await prisma.attendance.upsert({
     where,
-    update: { status, participationScore, mode, enteredByUserId: actorUserId, source },
-    create: { studentId, sessionId, status, participationScore, mode, enteredByUserId: actorUserId, source },
+    update: { status, participationScore, mode, enteredByUserId: actorUserId, source, importId: importId ?? null },
+    create: { studentId, sessionId, status, participationScore, mode, enteredByUserId: actorUserId, source, importId },
   });
 
   if (existing && (existing.status !== status || existing.participationScore !== participationScore)) {

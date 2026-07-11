@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Users, BookOpenCheck, Flag, CheckCircle2, ShieldAlert, ArrowRight } from "lucide-react";
+import { Users, BookOpenCheck, Flag, ShieldAlert, ArrowRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
 import { Role, LogbookStatus, FlagStatus } from "@/app/generated/prisma/enums";

@@ -5,6 +5,7 @@ import { MobileNavSheet } from "./mobile-nav-sheet";
 import { UserMenu } from "./user-menu";
 import { NAV_ITEMS } from "./nav-config";
 import { Role } from "@/app/generated/prisma/enums";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 function currentTitle(role: Role, pathname: string) {
   const items = NAV_ITEMS[role];
@@ -31,6 +32,7 @@ export function Header({
       <h1 className="min-w-0 flex-1 truncate text-base font-semibold md:text-lg">
         {currentTitle(role, pathname)}
       </h1>
+      <ThemeToggle />
       <UserMenu name={name} nrp={nrp} role={role} />
     </header>
   );

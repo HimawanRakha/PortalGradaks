@@ -31,6 +31,16 @@ export default async function ExportsPage() {
       name: "Persebaran HMD (DB7)",
       description: "Rekapitulasi total mahasiswa baru aktif per HMD (Himpunan Mahasiswa Departemen) untuk serah terima laporan.",
     },
+    {
+      icon: TableProperties,
+      name: "Rekap Unit-Region",
+      description: "Ringkasan jumlah maba dan rata-rata nilai mentah per unit/region untuk laporan cepat ke pimpinan.",
+    },
+    {
+      icon: Info,
+      name: "Codebook",
+      description: "Kamus data: setiap kolom wide-format dijelaskan asal kegiatan/materi, tipe, metode input, dan bobotnya.",
+    },
   ];
 
   return (

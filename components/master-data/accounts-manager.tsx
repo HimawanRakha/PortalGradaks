@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, Edit2, ShieldAlert } from "lucide-react";
+import { Loader2, Plus, Edit2 } from "lucide-react";
 import { Role } from "@/app/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,7 +55,7 @@ export function AccountsManager({
   regions: RegionOption[];
   units: UnitOption[];
 }) {
-  const [users, setUsers] = useState<UserData[]>(initialUsers);
+  const [users] = useState<UserData[]>(initialUsers);
   const [filterRole, setFilterRole] = useState<string>("ALL");
   const [pending, startTransition] = useTransition();
 

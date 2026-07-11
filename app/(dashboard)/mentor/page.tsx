@@ -71,6 +71,7 @@ export default async function MentorHomePage() {
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Button
+          nativeButton={false}
           render={<Link href="/mentor/scoring" />}
           variant="outline"
           className="h-auto justify-start gap-3 py-3"
@@ -82,6 +83,7 @@ export default async function MentorHomePage() {
           </span>
         </Button>
         <Button
+          nativeButton={false}
           render={<Link href="/mentor/logbook" />}
           variant="outline"
           className="h-auto justify-start gap-3 py-3"
@@ -93,6 +95,7 @@ export default async function MentorHomePage() {
           </span>
         </Button>
         <Button
+          nativeButton={false}
           render={<Link href="/mentor/students" />}
           variant="outline"
           className="h-auto justify-start gap-3 py-3"

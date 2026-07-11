@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { BarChart3, TrendingUp, Award, Layers } from "lucide-react";
+import { BarChart3 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
 import { Role } from "@/app/generated/prisma/enums";

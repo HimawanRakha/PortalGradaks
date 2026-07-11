@@ -365,22 +365,19 @@ export async function updateUserAction(
 ): Promise<ActionResult> {
   try {
     await assertAdmin();
-    const updateData: any = {
-      nrp: data.nrp.toLowerCase().trim(),
-      name: data.name.trim(),
-      role: data.role,
-      regionId: data.regionId || null,
-      unitId: data.unitId || null,
-      active: !!data.active,
-    };
-
-    if (data.password && data.password.trim() !== "") {
-      updateData.passwordHash = await bcrypt.hash(data.password, 10);
-    }
+    const passwordHash = data.password && data.password.trim() !== "" ? await bcrypt.hash(data.password, 10) : undefined;
 
     await prisma.user.update({
       where: { id },
-      data: updateData,
+      data: {
+        nrp: data.nrp.toLowerCase().trim(),
+        name: data.name.trim(),
+        role: data.role,
+        regionId: data.regionId || null,
+        unitId: data.unitId || null,
+        active: !!data.active,
+        ...(passwordHash ? { passwordHash } : {}),
+      },
     });
     revalidatePath("/admin/master-data/accounts");
     return { ok: true };

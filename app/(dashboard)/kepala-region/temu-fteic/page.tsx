@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AlertCircle, CheckCircle2, XCircle, Calendar, Users, Award } from "lucide-react";
+import { AlertCircle, CheckCircle2, Calendar } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
 import { Role, AttendanceStatus } from "@/app/generated/prisma/enums";
@@ -104,7 +104,6 @@ export default async function TemuFteicPage({
   const matrix = units.map((unit) => {
     const isConfirmed = confirmedUnitIds.has(unit.id);
     const confirmation = confirmations.find((c) => c.unitId === unit.id);
-    const unitStudents = unit.students.map((s) => s.id);
     const unitAttendance = attendanceRows.filter((a) => a.student.unitId === unit.id);
     const presentCount = unitAttendance.filter((a) => a.status === AttendanceStatus.HADIR).length;
 
