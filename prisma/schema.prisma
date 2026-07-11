@@ -1,0 +1,626 @@
+// Portal Pengembangan MABA 26 — data model
+// Core principle carried through every model below: everything that can
+// change (activities, materials, parameters, weights, schedules) is DATA,
+// never hardcoded in application code. See lib/scoring/calculate.ts for how
+// Parameter.personalWeight / skillWeight drive the final report with zero
+// code changes required to retune them.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  ADMIN // PSDM
+  KEPALA_REGION
+  MENTOR
+  DAMEN
+}
+
+/// The 5 input mechanisms from brief §4 — the one genuinely closed taxonomy
+/// in this system (form-rendering branches directly on this).
+enum ParameterType {
+  A // Kehadiran + keaktifan (attendance + participation)
+  B // Parameter perilaku (behavior rubric, 1-4 scale)
+  C // Rubrik penugasan berbutir, group-scored
+  D // Post-test / pengujian
+  E // Data eksternal & verifikasi
+}
+
+enum InputMethod {
+  MENTOR
+  IMPORT
+  GROUP
+}
+
+enum AttendanceStatus {
+  HADIR
+  IZIN
+  ALPA
+}
+
+enum SessionMode {
+  ONLINE
+  OFFLINE
+  NA
+}
+
+enum LogbookStatus {
+  BELUM_DIVERIFIKASI
+  LENGKAP
+  PERLU_REVISI
+}
+
+enum QuestionnaireCode {
+  K1
+  K2
+}
+
+enum ImportType {
+  PERSONALITY
+  BASELINE_K1
+  REFLECTION_K2
+  LOGBOOK
+  POST_TEST
+  PROKER
+  STUDENTS
+  ACCOUNTS
+}
+
+enum ImportRowAction {
+  CREATED
+  UPDATED
+  SKIPPED_NO_MATCH
+  SKIPPED_DUPLICATE
+  FAILED
+}
+
+enum FlagStatus {
+  OPEN
+  RESOLVED
+}
+
+enum VerificationLayer {
+  MENTOR
+  DAMEN
+  PSDM
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  TRANSFER
+}
+
+enum ScoreSource {
+  MENTOR
+  IMPORT
+}
+
+// ============================================================
+// ORG STRUCTURE
+// ============================================================
+
+model Region {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  units Unit[]
+  users User[]
+
+  @@map("regions")
+}
+
+/// Academic department (HMD — Himpunan Mahasiswa Departemen). Deliberately
+/// separate from Region/Unit: Region/Unit is the mentoring org structure,
+/// Department is the maba's actual major — needed for the per-HMD
+/// distribution export (brief §7.4), which cuts across mentoring units.
+model Department {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  students Student[]
+
+  @@map("departments")
+}
+
+model Unit {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  region    Region   @relation(fields: [regionId], references: [id])
+  regionId  String
+  createdAt DateTime @default(now())
+
+  mentor        User?          @relation("MentorUnit")
+  students      Student[]
+  groups        Group[]
+  confirmations Confirmation[]
+  flags         Flag[]
+
+  @@index([regionId])
+  @@map("units")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  nrp          String   @unique
+  name         String
+  passwordHash String
+  role         Role
+  region       Region?  @relation(fields: [regionId], references: [id])
+  regionId     String?
+  unit         Unit?    @relation("MentorUnit", fields: [unitId], references: [id])
+  unitId       String?  @unique
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  raisedFlags        Flag[]           @relation("FlagRaisedBy")
+  resolvedFlags      Flag[]           @relation("FlagResolvedBy")
+  imports            Import[]
+  verifiedLogbooks   LogbookEntry[]   @relation("LogbookVerifiedBy")
+  verifications      Verification[]
+  confirmations      Confirmation[]
+  enteredScores      Score[]          @relation("ScoreEnteredBy")
+  enteredAttendance  Attendance[]     @relation("AttendanceEnteredBy")
+  enteredGroupScores GroupScore[]     @relation("GroupScoreEnteredBy")
+  finalizedRaports   RaportSnapshot[]
+  auditLogs          AuditLog[]
+
+  @@index([regionId])
+  @@map("users")
+}
+
+model Student {
+  id           String      @id @default(cuid())
+  nrp          String      @unique
+  name         String
+  unit         Unit        @relation(fields: [unitId], references: [id])
+  unitId       String
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId String?
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+
+  personalityProfile    PersonalityProfile?
+  questionnaireStatuses QuestionnaireStatus[]
+  logbookEntries        LogbookEntry[]
+  attendances           Attendance[]
+  scores                Score[]
+  groupMemberships      GroupMember[]
+  flags                 Flag[]
+  verifications         Verification[]
+  raportSnapshot        RaportSnapshot?
+  importRows            ImportRow[]
+
+  @@index([unitId])
+  @@index([departmentId])
+  @@map("students")
+}
+
+// ============================================================
+// PROGRAM STRUCTURE — plain string codes, not enums, so PSDM can add
+// next year's activity/material from Master Data with zero code changes.
+// ============================================================
+
+model Activity {
+  id           String   @id @default(cuid())
+  code         String   @unique // e.g. INCLENATION, TEMU_0, TEMU_1, PROKER
+  name         String
+  order        Int
+  isImportOnly Boolean  @default(false) // e.g. Proker fakultas: no mentor input at all
+  createdAt    DateTime @default(now())
+
+  sessions  ActivitySession[]
+  materials Material[]
+
+  @@map("activities")
+}
+
+model ActivitySession {
+  id                 String      @id @default(cuid())
+  activity           Activity    @relation(fields: [activityId], references: [id])
+  activityId         String
+  code               String // e.g. "1.0", "1.1"
+  name               String
+  scheduledAt        DateTime?
+  mode               SessionMode @default(NA)
+  quorumThresholdPct Decimal?    @db.Decimal(5, 2) // H-7 ambang kuorum
+  createdAt          DateTime    @default(now())
+
+  scores        Score[]
+  attendances   Attendance[]
+  confirmations Confirmation[]
+
+  @@unique([activityId, code])
+  @@map("activity_sessions")
+}
+
+model Material {
+  id         String   @id @default(cuid())
+  activity   Activity @relation(fields: [activityId], references: [id])
+  activityId String
+  code       String // e.g. KWYA, BMB, JAD, HTWF, WUWE, WAWASAN_TEKNOLOGI
+  name       String
+  order      Int
+  createdAt  DateTime @default(now())
+
+  parameters Parameter[]
+  groups     Group[]
+
+  @@unique([activityId, code])
+  @@map("materials")
+}
+
+/// Every scoring parameter. Adding a row here (via Master Data UI) is the
+/// entire mechanism for "next year's new material needs no code change."
+model Parameter {
+  id             String        @id @default(cuid())
+  material       Material      @relation(fields: [materialId], references: [id])
+  materialId     String
+  type           ParameterType
+  subCode        String // e.g. "B3", "A1"
+  name           String
+  /// Placeholder rubric text pending PSDM sign-off — see seed.ts note.
+  /// Shape: { "1": "...", "2": "...", "3": "...", "4": "..." }
+  rubricAnchors  Json?
+  /// How much one unit of this parameter's score feeds the final Personal
+  /// score. Null = does not feed Personal at all. Independent from
+  /// skillWeight so a parameter can feed both, one, or neither bucket
+  /// without forcing identical weight into both.
+  personalWeight Decimal?      @db.Decimal(7, 4)
+  skillWeight    Decimal?      @db.Decimal(7, 4)
+  /// The raw value scale this parameter is scored on (4 for a 1-4 rubric,
+  /// 100 for a post-test out of 100, 1 for pass/fail) — lets the calc
+  /// engine normalize any parameter to a common 0-100 scale generically.
+  maxValue       Int           @default(4)
+  inputMethod    InputMethod
+  order          Int
+  active         Boolean       @default(true) // retire without deleting history
+  createdAt      DateTime      @default(now())
+
+  scores      Score[]
+  groupScores GroupScore[]
+
+  @@unique([materialId, subCode])
+  @@map("parameters")
+}
+
+// ============================================================
+// SCORING — long format with a unique constraint as the anti-duplicate
+// mechanism (brief's non-negotiable rule #1). sessionId is REQUIRED (not
+// nullable) specifically so this constraint stays airtight: Postgres
+// treats NULL as distinct-from-NULL, which would silently defeat the
+// unique constraint for session-less parameters. Materials whose scoring
+// isn't tied to a real meeting get one synthetic "general" session created
+// at seed time instead.
+// ============================================================
+
+model Score {
+  id              String          @id @default(cuid())
+  student         Student         @relation(fields: [studentId], references: [id])
+  studentId       String
+  parameter       Parameter       @relation(fields: [parameterId], references: [id])
+  parameterId     String
+  session         ActivitySession @relation(fields: [sessionId], references: [id])
+  sessionId       String
+  value           Int? // raw 1-4 / pass-fail / point value; weighting happens in calc engine
+  enteredBy       User?           @relation("ScoreEnteredBy", fields: [enteredByUserId], references: [id])
+  enteredByUserId String?
+  source          ScoreSource
+  import          Import?         @relation(fields: [importId], references: [id])
+  importId        String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([studentId, parameterId, sessionId])
+  @@index([sessionId])
+  @@index([parameterId])
+  @@index([importId])
+  @@map("scores")
+}
+
+/// A group exists for exactly one unit's cohort scoring one material
+/// (Type C) — never a standing team, so completeness dashboards can treat
+/// "students with no GroupMember row yet" as its own distinct incomplete
+/// state instead of an inner join silently hiding them.
+model Group {
+  id         String   @id @default(cuid())
+  material   Material @relation(fields: [materialId], references: [id])
+  materialId String
+  unit       Unit     @relation(fields: [unitId], references: [id])
+  unitId     String
+  name       String
+  createdAt  DateTime @default(now())
+
+  members     GroupMember[]
+  groupScores GroupScore[]
+
+  @@unique([materialId, unitId, name])
+  @@map("groups")
+}
+
+model GroupMember {
+  id        String  @id @default(cuid())
+  group     Group   @relation(fields: [groupId], references: [id])
+  groupId   String
+  student   Student @relation(fields: [studentId], references: [id])
+  studentId String
+
+  @@unique([groupId, studentId])
+  @@map("group_members")
+}
+
+/// Scored ONCE per group. Derived to individual members only at read/calc
+/// time via GroupMember — never duplicated into Score at write time
+/// (brief's v2 rule #7).
+model GroupScore {
+  id              String    @id @default(cuid())
+  group           Group     @relation(fields: [groupId], references: [id])
+  groupId         String
+  parameter       Parameter @relation(fields: [parameterId], references: [id])
+  parameterId     String
+  value           Int?
+  enteredBy       User?     @relation("GroupScoreEnteredBy", fields: [enteredByUserId], references: [id])
+  enteredByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([groupId, parameterId])
+  @@map("group_scores")
+}
+
+model Attendance {
+  id                 String           @id @default(cuid())
+  student            Student          @relation(fields: [studentId], references: [id])
+  studentId          String
+  session            ActivitySession  @relation(fields: [sessionId], references: [id])
+  sessionId          String
+  status             AttendanceStatus
+  participationScore Int? // 1-4
+  mode               SessionMode      @default(NA)
+  enteredBy          User?            @relation("AttendanceEnteredBy", fields: [enteredByUserId], references: [id])
+  enteredByUserId    String?
+  source             ScoreSource      @default(MENTOR)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([studentId, sessionId])
+  @@index([sessionId])
+  @@map("attendances")
+}
+
+// ============================================================
+// IMPORTS — batch summary + per-row provenance. The per-row split is what
+// makes a corrective re-upload provably traceable (batch-only FK can't
+// show what actually changed); previousValueSnapshot captures the value
+// immediately before any overwrite.
+// ============================================================
+
+model Import {
+  id               String     @id @default(cuid())
+  type             ImportType
+  fileName         String
+  importedBy       User       @relation(fields: [importedByUserId], references: [id])
+  importedByUserId String
+  totalRows        Int
+  matchedRows      Int
+  failedRows       Int
+  createdAt        DateTime   @default(now())
+
+  rows                  ImportRow[]
+  scores                Score[]
+  logbookEntries        LogbookEntry[]
+  questionnaireStatuses QuestionnaireStatus[]
+  personalityProfiles   PersonalityProfile[]
+
+  @@map("imports")
+}
+
+model ImportRow {
+  id                    String          @id @default(cuid())
+  import                Import          @relation(fields: [importId], references: [id])
+  importId              String
+  rowNumber             Int
+  rawData               Json
+  matchedStudent        Student?        @relation(fields: [matchedStudentId], references: [id])
+  matchedStudentId      String?
+  action                ImportRowAction
+  /// Value(s) as they were immediately before this row overwrote them —
+  /// null if this row created a new record (nothing to snapshot).
+  previousValueSnapshot Json?
+  errorReason           String?
+  createdAt             DateTime        @default(now())
+
+  @@index([importId])
+  @@index([matchedStudentId])
+  @@map("import_rows")
+}
+
+// ============================================================
+// LOGBOOK & QUESTIONNAIRES
+// ============================================================
+
+model LogbookEntry {
+  id               String        @id @default(cuid())
+  student          Student       @relation(fields: [studentId], references: [id])
+  studentId        String
+  periodLabel      String // e.g. "Minggu 1"
+  content          String        @db.Text
+  status           LogbookStatus @default(BELUM_DIVERIFIKASI)
+  verifiedBy       User?         @relation("LogbookVerifiedBy", fields: [verifiedByUserId], references: [id])
+  verifiedByUserId String?
+  verifiedAt       DateTime?
+  note             String?
+  import           Import?       @relation(fields: [importId], references: [id])
+  importId         String?
+  createdAt        DateTime      @default(now())
+
+  @@index([studentId])
+  @@index([status])
+  @@map("logbook_entries")
+}
+
+model QuestionnaireStatus {
+  id          String            @id @default(cuid())
+  student     Student           @relation(fields: [studentId], references: [id])
+  studentId   String
+  code        QuestionnaireCode
+  submitted   Boolean           @default(false)
+  submittedAt DateTime?
+  raw         Json?
+  import      Import?           @relation(fields: [importId], references: [id])
+  importId    String?
+  createdAt   DateTime          @default(now())
+
+  @@unique([studentId, code])
+  @@map("questionnaire_statuses")
+}
+
+/// Descriptive only — deliberately NEVER referenced by
+/// lib/scoring/calculate.ts. This is a standing decision from the brief's
+/// own risk register, not an oversight: MBTI/Temperament data quality is
+/// considered insufficient to be a weighted scoring input.
+model PersonalityProfile {
+  id          String   @id @default(cuid())
+  student     Student  @relation(fields: [studentId], references: [id])
+  studentId   String   @unique
+  mbtiType    String?
+  temperament String?
+  import      Import?  @relation(fields: [importId], references: [id])
+  importId    String?
+  importedAt  DateTime @default(now())
+
+  @@map("personality_profiles")
+}
+
+// ============================================================
+// WORKFLOW — confirmations, escalation, tiered verification
+// ============================================================
+
+model Confirmation {
+  id                String          @id @default(cuid())
+  session           ActivitySession @relation(fields: [sessionId], references: [id])
+  sessionId         String
+  unit              Unit            @relation(fields: [unitId], references: [id])
+  unitId            String
+  confirmedBy       User            @relation(fields: [confirmedByUserId], references: [id])
+  confirmedByUserId String
+  confirmedAt       DateTime        @default(now())
+
+  @@unique([sessionId, unitId])
+  @@map("confirmations")
+}
+
+model Flag {
+  id               String     @id @default(cuid())
+  student          Student?   @relation(fields: [studentId], references: [id])
+  studentId        String?
+  unit             Unit?      @relation(fields: [unitId], references: [id])
+  unitId           String?
+  raisedBy         User       @relation("FlagRaisedBy", fields: [raisedByUserId], references: [id])
+  raisedByUserId   String
+  message          String
+  status           FlagStatus @default(OPEN)
+  resolvedBy       User?      @relation("FlagResolvedBy", fields: [resolvedByUserId], references: [id])
+  resolvedByUserId String?
+  resolvedAt       DateTime?
+  resolutionNote   String?
+  createdAt        DateTime   @default(now())
+
+  @@index([status])
+  @@index([unitId])
+  @@index([studentId])
+  @@map("flags")
+}
+
+/// The 3-layer final check (Mentor -> Damen -> PSDM). Whether the DAMEN
+/// layer is actually gating (vs. auto-passed/merged into PSDM) is read
+/// from Setting["verification.damenEnabled"] at runtime, not hardcoded,
+/// since brief §3 treats that role as optional/structure-dependent.
+model Verification {
+  id               String             @id @default(cuid())
+  student          Student            @relation(fields: [studentId], references: [id])
+  studentId        String
+  layer            VerificationLayer
+  status           VerificationStatus @default(PENDING)
+  verifiedBy       User?              @relation(fields: [verifiedByUserId], references: [id])
+  verifiedByUserId String?
+  verifiedAt       DateTime?
+  note             String?
+
+  @@unique([studentId, layer])
+  @@map("verifications")
+}
+
+/// Written ONCE at finalization — never before. Before finalization,
+/// "current score" is always a live call to computeScores(), never a
+/// stored value. breakdown captures the weight actually used per
+/// parameter at calc time so a later master-data weight edit can never
+/// retroactively change what an already-finalized snapshot shows.
+model RaportSnapshot {
+  id                String   @id @default(cuid())
+  student           Student  @relation(fields: [studentId], references: [id])
+  studentId         String   @unique
+  personalScore     Decimal  @db.Decimal(8, 3)
+  skillScore        Decimal  @db.Decimal(8, 3)
+  breakdown         Json
+  recommendation    String?
+  finalizedBy       User     @relation(fields: [finalizedByUserId], references: [id])
+  finalizedByUserId String
+  finalizedAt       DateTime @default(now())
+
+  @@map("raport_snapshots")
+}
+
+// ============================================================
+// CROSS-CUTTING
+// ============================================================
+
+/// General-purpose audit trail — covers mentor score corrections (an
+/// upsert changing an already-different value), student unit transfers,
+/// and anywhere else "no silent overwrite" matters, without a bespoke
+/// history table per case.
+model AuditLog {
+  id              String      @id @default(cuid())
+  entityType      String // e.g. "Score", "Student"
+  entityId        String
+  action          AuditAction
+  field           String?
+  oldValue        Json?
+  newValue        Json?
+  changedBy       User        @relation(fields: [changedByUserId], references: [id])
+  changedByUserId String
+  changedAt       DateTime    @default(now())
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+/// Key-value config: calc weights (logbook/K1/K2 contributions), the
+/// mentor-calibration deviation threshold (0.6 per brief), the
+/// DAMEN-layer-active toggle. Tunable without touching code.
+model Setting {
+  key   String @id
+  value Json
+
+  @@map("settings")
+}
