@@ -1,14 +1,26 @@
 import "server-only";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/auth/dal";
 import type { SessionUser } from "@/lib/auth/dal";
 
+/**
+ * The session JWT freezes unitId at sign-in time and never re-validates it
+ * against the DB (see auth.ts's jwt callback — it only reads from `user`
+ * on initial sign-in). If the unit that id pointed to gets deleted and
+ * recreated with a new id (a reseed, or an admin reassigning the mentor),
+ * every request from an already-signed-in session would otherwise crash
+ * here with an unhandled Prisma P2025. Fail soft instead: this is
+ * functionally an invalid/stale session, so send them back to sign in
+ * fresh rather than showing a raw error page.
+ */
 export async function requireMentorUnit(user: SessionUser) {
   if (!user.unitId) throw new ForbiddenError("Akun ini belum ditautkan ke unit manapun.");
-  const unit = await prisma.unit.findUniqueOrThrow({
+  const unit = await prisma.unit.findUnique({
     where: { id: user.unitId },
     include: { region: true, students: { orderBy: { name: "asc" } } },
   });
+  if (!unit) redirect("/login");
   return unit;
 }
 

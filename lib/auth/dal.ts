@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Role } from "@/app/generated/prisma/enums";
@@ -79,10 +79,13 @@ export async function assertCanViewUnit(unitId: string, user?: SessionUser): Pro
 }
 
 export async function assertCanViewStudent(studentId: string, user?: SessionUser): Promise<void> {
-  const student = await prisma.student.findUniqueOrThrow({
+  const student = await prisma.student.findUnique({
     where: { id: studentId },
     select: { unitId: true },
   });
+  // A stale/deleted studentId (e.g. a bookmarked URL from before a reseed)
+  // is a missing-page case, not a permission error — 404, don't crash.
+  if (!student) notFound();
   await assertCanViewUnit(student.unitId, user);
 }
 

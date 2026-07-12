@@ -381,10 +381,13 @@ async function seedProgramStructure() {
     { subCode: "B.1_2", name: "Habit 2: Begin with the End in Mind", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 3, clusterLabel: "Visi & Tujuan" },
   ]);
 
-  // Each skill category is rated by the mentor as ONE cluster (1-4), but
-  // internally breaks down into 3 hidden parameters (Keaktifan/Minat/Potensi)
-  // per lib/scoring/calculate.ts's prefix-based skill matching (subCode
-  // "M_1"/"M_2"/"M_3" all roll up into the same Manajerial bucket, etc.).
+  // Unlike the personal-value materials, each skill category's 3 dimensions
+  // (Keaktifan/Minat/Potensi) are deliberately NOT clustered into one input —
+  // a maba can genuinely score differently across them (e.g. logs entries
+  // often but shows little real interest), so the mentor rates each of the
+  // 12 dimensions on its own. lib/scoring/calculate.ts's prefix-based skill
+  // matching (subCode "M_1"/"M_2"/"M_3" all roll up into the same Manajerial
+  // bucket, etc.) still averages them into the 4 category scores.
   const skillDimensions = ["Keaktifan", "Minat", "Potensi"] as const;
   const skillCategories = [
     { prefix: "M", label: "Manajerial" },
@@ -407,7 +410,6 @@ async function seedProgramStructure() {
         maxValue: 4,
         inputMethod: InputMethod.MENTOR,
         order: ci * skillDimensions.length + di + 1,
-        clusterLabel: category.label,
       })),
     ),
   );

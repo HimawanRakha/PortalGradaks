@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Users, BookOpenCheck, Flag, CheckCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
@@ -25,7 +26,7 @@ export default async function RegionHomePage({
 
   // Fetch region info & activities
   const [region, activities] = await Promise.all([
-    prisma.region.findUniqueOrThrow({
+    prisma.region.findUnique({
       where: { id: user.regionId },
       include: {
         units: {
@@ -39,6 +40,10 @@ export default async function RegionHomePage({
     }),
     prisma.activity.findMany({ where: { active: true }, orderBy: { order: "asc" } }),
   ]);
+  // Session's regionId is frozen at sign-in — if the region was deleted and
+  // recreated since (e.g. a reseed), this is a stale session, not a real
+  // permission error. Send back to sign in fresh instead of crashing.
+  if (!region) redirect("/login");
 
   const selectedActivity = activities.find((act) => act.code === activityParam) || activities[0];
   const activityCode = selectedActivity?.code;
