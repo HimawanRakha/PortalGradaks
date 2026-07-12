@@ -2,11 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, Edit2, Trash2, Layers } from "lucide-react";
+import { Loader2, Plus, Edit2, Trash2, Layers, EyeOff, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
 import {
   createMaterialAction,
   updateMaterialAction,
+  setMaterialActiveAction,
   deleteMaterialAction,
 } from "@/app/(dashboard)/admin/master-data/actions";
 
@@ -27,6 +29,7 @@ type MaterialData = {
   code: string;
   name: string;
   order: number;
+  active: boolean;
   activity: {
     id: string;
     code: string;
@@ -59,6 +62,7 @@ export function MaterialsManager({
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [order, setOrder] = useState("");
+  const [active, setActive] = useState(true);
 
   const openModal = (material?: MaterialData) => {
     if (material) {
@@ -67,12 +71,14 @@ export function MaterialsManager({
       setCode(material.code);
       setName(material.name);
       setOrder(String(material.order));
+      setActive(material.active);
     } else {
       setEditId(null);
       setActivityId(activities[0]?.id || "");
       setCode("");
       setName("");
       setOrder(String(materials.length + 1));
+      setActive(true);
     }
     setIsOpen(true);
   };
@@ -90,6 +96,7 @@ export function MaterialsManager({
         code,
         name,
         order: Number(order),
+        active,
       };
 
       if (editId) {
@@ -101,6 +108,18 @@ export function MaterialsManager({
       if (res.ok) {
         toast.success(editId ? "Materi diperbarui." : "Materi dibuat.");
         setIsOpen(false);
+        window.location.reload();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  };
+
+  const handleToggleActive = (id: string, nextActive: boolean) => {
+    startTransition(async () => {
+      const res = await setMaterialActiveAction(id, nextActive);
+      if (res.ok) {
+        toast.success(nextActive ? "Materi diaktifkan kembali." : "Materi dinonaktifkan.");
         window.location.reload();
       } else {
         toast.error(res.error);
@@ -149,12 +168,13 @@ export function MaterialsManager({
                     <th className="p-3">Nama Materi</th>
                     <th className="p-3">Urutan</th>
                     <th className="p-3">Jumlah Parameter</th>
+                    <th className="p-3">Status</th>
                     <th className="p-3 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {materials.map((material) => (
-                    <tr key={material.id} className="hover:bg-muted/30">
+                    <tr key={material.id} className={`hover:bg-muted/30 ${!material.active ? "opacity-60" : ""}`}>
                       <td className="p-3 font-medium">
                         <div className="flex items-center gap-1.5">
                           <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
@@ -176,11 +196,30 @@ export function MaterialsManager({
                           {material._count.parameters} parameter
                         </span>
                       </td>
+                      <td className="p-3">
+                        <span
+                          className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold border ${
+                            material.active
+                              ? "bg-green-500/10 text-green-500 border-green-500/20"
+                              : "bg-gray-500/10 text-gray-500 border-gray-500/20"
+                          }`}
+                        >
+                          {material.active ? "Aktif" : "Nonaktif"}
+                        </span>
+                      </td>
                       <td className="p-3 text-right">
                         <div className="flex justify-end gap-1.5">
                           <Button size="xs" variant="ghost" onClick={() => openModal(material)}>
                             <Edit2 className="size-3" />
                             Edit
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            onClick={() => handleToggleActive(material.id, !material.active)}
+                            disabled={pending}
+                          >
+                            {material.active ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
                           </Button>
                           <Button size="xs" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => handleDelete(material.id, material.name)}>
                             <Trash2 className="size-3" />
@@ -230,6 +269,12 @@ export function MaterialsManager({
             <div className="grid gap-2">
               <Label htmlFor="mat-order">Urutan Tampil (Angka)</Label>
               <Input id="mat-order" type="number" placeholder="1" value={order} onChange={(e) => setOrder(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="mat-active" checked={active} onCheckedChange={(val) => setActive(!!val)} />
+              <Label htmlFor="mat-active" className="font-normal cursor-pointer select-none">
+                Aktif (muncul di form scoring mentor & dashboard pemantauan)
+              </Label>
             </div>
           </div>
           <DialogFooter>

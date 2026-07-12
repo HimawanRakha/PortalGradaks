@@ -30,8 +30,10 @@ export default async function CalibrationPage({
   // 2. Fetch activities that have behavior parameters (Type B)
   const availableActivities = await prisma.activity.findMany({
     where: {
+      active: true,
       materials: {
         some: {
+          active: true,
           parameters: {
             some: { type: ParameterType.B, active: true },
           },

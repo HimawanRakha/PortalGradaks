@@ -48,10 +48,10 @@ const SCHEMAS: Record<ImportType, { title: string; cols: string[]; desc: string;
     sample: "nrp,periodLabel,content\n2512345678,Minggu 1,Hari ini saya belajar dasar programming...\n2598765432,Minggu 1,Melakukan perkenalan unit mentoring...",
   },
   [ImportType.POST_TEST]: {
-    title: "Nilai Post-test (Tipe D)",
+    title: "Nilai Post-test / Pengujian",
     cols: ["nrp", "activity_code", "material_code", "parameter_subcode", "value"],
-    desc: "Mengimpor nilai post-test/pengujian ke parameter yang sudah ada di Master Data (mis. Wawasan FTEIC).",
-    sample: "nrp,activity_code,material_code,parameter_subcode,value\n2512345678,INCLENATION,WAWASAN_FTEIC,D1,88",
+    desc: "Mengimpor nilai ke parameter mana pun yang sudah ada di Master Data, dicari lewat activity_code/material_code/parameter_subcode-nya — cocok untuk parameter Tipe D (post-test) yang belum ada saat ini di seed default.",
+    sample: "nrp,activity_code,material_code,parameter_subcode,value\n2512345678,INCLENATION,MARS_ELECTICS,A.2,4",
   },
   [ImportType.PROKER]: {
     title: "Presensi Proker Fakultas",

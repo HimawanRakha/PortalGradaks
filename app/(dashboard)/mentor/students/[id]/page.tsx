@@ -66,7 +66,12 @@ export default async function StudentProfilePage({ params }: { params: Promise<{
                 </p>
               </div>
             </div>
-            <ScoreBreakdownList personal={computed.personal.items} skill={computed.skill.items} />
+            <ScoreBreakdownList
+              personalGroups={computed.personal.groups}
+              skillCategories={computed.skill.categories}
+              personalItems={computed.personal.items}
+              skillItems={computed.skill.items}
+            />
           </CardContent>
         </Card>
 

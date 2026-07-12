@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, Edit2, SlidersHorizontal, Info } from "lucide-react";
+import { Loader2, Plus, Edit2, SlidersHorizontal, Info, Trash2 } from "lucide-react";
 import { ParameterType, InputMethod } from "@/app/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +22,7 @@ import {
 import {
   createParameterAction,
   updateParameterAction,
+  deleteParameterAction,
 } from "@/app/(dashboard)/admin/master-data/actions";
 
 type ParameterData = {
@@ -34,6 +35,7 @@ type ParameterData = {
   maxValue: number;
   inputMethod: InputMethod;
   order: number;
+  clusterLabel: string | null;
   rubricAnchors: Record<string, string> | null;
   active: boolean;
   material: {
@@ -77,6 +79,7 @@ export function ParametersManager({
   const [maxValue, setMaxValue] = useState("4");
   const [inputMethod, setInputMethod] = useState<InputMethod>(InputMethod.MENTOR);
   const [order, setOrder] = useState("");
+  const [clusterLabel, setClusterLabel] = useState("");
   const [active, setActive] = useState(true);
 
   // Rubric Anchors (Type B behaviors)
@@ -97,6 +100,7 @@ export function ParametersManager({
       setMaxValue(String(param.maxValue));
       setInputMethod(param.inputMethod);
       setOrder(String(param.order));
+      setClusterLabel(param.clusterLabel ?? "");
       setActive(param.active);
 
       const anchors = param.rubricAnchors || {};
@@ -115,6 +119,7 @@ export function ParametersManager({
       setMaxValue("4");
       setInputMethod(InputMethod.MENTOR);
       setOrder(String(parameters.length + 1));
+      setClusterLabel("");
       setActive(true);
       setAnchor1("");
       setAnchor2("");
@@ -149,6 +154,7 @@ export function ParametersManager({
         maxValue: Number(maxValue),
         inputMethod,
         order: Number(order),
+        clusterLabel: clusterLabel.trim() || null,
         rubricAnchors: anchors,
         active,
       };
@@ -162,6 +168,20 @@ export function ParametersManager({
       if (res.ok) {
         toast.success(editId ? "Parameter diperbarui." : "Parameter dibuat.");
         setIsOpen(false);
+        window.location.reload();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  };
+
+  const handleDelete = (id: string, name: string) => {
+    if (!confirm(`Apakah Anda yakin ingin menghapus parameter "${name}"? Semua log nilai maba yang menggunakan parameter ini juga akan terhapus secara permanen.`)) return;
+
+    startTransition(async () => {
+      const res = await deleteParameterAction(id);
+      if (res.ok) {
+        toast.success("Parameter berhasil dihapus.");
         window.location.reload();
       } else {
         toast.error(res.error);
@@ -212,6 +232,7 @@ export function ParametersManager({
                     <th className="p-3">Materi</th>
                     <th className="p-3">Kode Sub</th>
                     <th className="p-3">Nama Parameter</th>
+                    <th className="p-3">Rumpun Penilaian</th>
                     <th className="p-3">Tipe</th>
                     <th className="p-3">Metode Input</th>
                     <th className="p-3">Bobot Personal</th>
@@ -245,6 +266,9 @@ export function ParametersManager({
                           )}
                         </div>
                       </td>
+                      <td className="p-3 text-muted-foreground">
+                        {param.clusterLabel ?? <span className="opacity-50">— (berdiri sendiri)</span>}
+                      </td>
                       <td className="p-3">
                         <span className="font-mono font-bold bg-muted px-1.5 py-0.5 rounded border">
                           Tipe {param.type}
@@ -262,10 +286,22 @@ export function ParametersManager({
                         </span>
                       </td>
                       <td className="p-3 text-right">
-                        <Button size="xs" variant="ghost" onClick={() => openModal(param)}>
-                          <Edit2 className="size-3" />
-                          Edit
-                        </Button>
+                        <div className="flex justify-end gap-1.5">
+                          <Button size="xs" variant="ghost" onClick={() => openModal(param)}>
+                            <Edit2 className="size-3" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="xs"
+                            variant="ghost"
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDelete(param.id, param.name)}
+                            disabled={pending}
+                          >
+                            <Trash2 className="size-3" />
+                            Hapus
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -308,6 +344,20 @@ export function ParametersManager({
             <div className="grid gap-1">
               <Label htmlFor="param-name">Nama Parameter Penilaian</Label>
               <Input id="param-name" placeholder="Kedisiplinan dan kerapian atribut" value={name} onChange={(e) => setName(e.target.value)} className="h-8" />
+            </div>
+
+            <div className="grid gap-1">
+              <Label htmlFor="param-cluster">Rumpun Penilaian (opsional)</Label>
+              <Input
+                id="param-cluster"
+                placeholder="mis. Intrapersonal & Self-Mastery"
+                value={clusterLabel}
+                onChange={(e) => setClusterLabel(e.target.value)}
+                className="h-8"
+              />
+              <span className="text-[10px] text-muted-foreground">
+                Parameter lain di materi yang sama dengan rumpun yang sama tampil sebagai SATU pertanyaan untuk mentor — nilai yang mentor pilih otomatis berlaku untuk semuanya. Kosongkan agar parameter ini berdiri sendiri.
+              </span>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

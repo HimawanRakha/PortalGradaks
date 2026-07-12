@@ -406,13 +406,11 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
   try {
     const user = await assertRole(Role.ADMIN);
 
-    const [students, damenSetting, marsThresholdSetting] = await Promise.all([
+    const [students, damenSetting] = await Promise.all([
       prisma.student.findMany({ where: { active: true }, select: { id: true } }),
       prisma.setting.findUnique({ where: { key: SETTING_KEYS.damenEnabled } }),
-      prisma.setting.findUnique({ where: { key: SETTING_KEYS.marsPassThreshold } }),
     ]);
     const damenEnabled = !!damenSetting?.value;
-    const marsThreshold = typeof marsThresholdSetting?.value === "number" ? marsThresholdSetting.value : 70;
 
     const studentIds = students.map((s) => s.id);
     const verifications = await prisma.verification.findMany({ where: { studentId: { in: studentIds } } });
@@ -422,14 +420,6 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
       list.push(v);
       verificationsByStudent.set(v.studentId, list);
     }
-
-    // Mars Electics score, fetched in bulk (one query, not one per student) via
-    // its known material code — used for the pass/fail recommendation heuristic.
-    const marsParam = await prisma.parameter.findFirst({ where: { material: { code: "MARS_ELECTICS" } } });
-    const marsScores = marsParam
-      ? await prisma.score.findMany({ where: { parameterId: marsParam.id, studentId: { in: studentIds } }, select: { studentId: true, value: true } })
-      : [];
-    const marsByStudent = new Map(marsScores.map((s) => [s.studentId, s.value]));
 
     let finalizedCount = 0;
     let skippedCount = 0;
@@ -447,15 +437,12 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
       const personalScore = computed.personal.score ?? 0;
       const skillScore = computed.skill.score ?? 0;
 
-      const attendanceItem = computed.personal.items.find((item) => item.refCode === "ATTENDANCE");
-      const isAttendanceFailed = attendanceItem !== undefined && attendanceItem.normalizedValue < 70;
-
-      const marsValue = marsByStudent.get(student.id);
-      const isMarsFailed = marsValue !== null && marsValue !== undefined && marsValue < marsThreshold;
+      const attendanceRate = computed.personal.breakdown.a1;
+      const isAttendanceFailed = attendanceRate !== null && attendanceRate < 70;
 
       let recommendation = "LULUS";
-      if (isAttendanceFailed || isMarsFailed) {
-        recommendation = "TIDAK LULUS (kriteria minimum kehadiran atau Mars Electics belum terpenuhi)";
+      if (isAttendanceFailed) {
+        recommendation = "TIDAK LULUS (kriteria minimum kehadiran belum terpenuhi)";
       } else if (personalScore < 60 || skillScore < 60) {
         recommendation = "LULUS DENGAN EVALUASI";
       }

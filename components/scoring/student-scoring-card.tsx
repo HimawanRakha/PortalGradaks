@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RubricValuePicker } from "./rubric-value-picker";
 import { saveStudentScoresAction } from "@/app/(dashboard)/mentor/actions";
+import { groupByCluster } from "@/lib/scoring/clusters";
 
 type Parameter = {
   id: string;
@@ -15,6 +16,8 @@ type Parameter = {
   name: string;
   maxValue: number;
   rubricAnchors: unknown;
+  clusterLabel: string | null;
+  order: number;
 };
 
 type Material = {
@@ -57,12 +60,17 @@ export function StudentScoringCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const totalParams = materials.reduce((sum, m) => sum + m.parameters.length, 0);
-  const filledParams = Object.values(values).filter((v) => v !== null && v !== undefined).length;
+  const materialsWithClusters = materials.map((m) => ({ ...m, clusters: groupByCluster(m.parameters) }));
+  const totalClusters = materialsWithClusters.reduce((sum, m) => sum + m.clusters.length, 0);
+  const filledClusters = materialsWithClusters.reduce(
+    (sum, m) => sum + m.clusters.filter((c) => values[c.parameterIds[0]] !== null && values[c.parameterIds[0]] !== undefined).length,
+    0,
+  );
 
-  function updateValue(parameterId: string, value: number | null) {
+  function updateCluster(parameterIds: string[], value: number | null) {
     setValues((prev) => {
-      const next = { ...prev, [parameterId]: value };
+      const next = { ...prev };
+      for (const id of parameterIds) next[id] = value;
       window.localStorage.setItem(draftKey, JSON.stringify(next));
       return next;
     });
@@ -89,23 +97,23 @@ export function StudentScoringCard({
           <p className="truncate text-sm font-semibold">{student.name}</p>
           <p className="text-xs text-muted-foreground">{student.nrp}</p>
         </div>
-        <Badge variant={filledParams >= totalParams ? "default" : "secondary"}>
-          {filledParams}/{totalParams}
+        <Badge variant={filledClusters >= totalClusters ? "default" : "secondary"}>
+          {filledClusters}/{totalClusters}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-5">
-        {materials.map((material) => (
+        {materialsWithClusters.map((material) => (
           <div key={material.id} className="space-y-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{material.name}</p>
             <div className="space-y-3">
-              {material.parameters.map((param) => (
-                <div key={param.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="min-w-0 flex-1 text-sm">{param.name}</p>
+              {material.clusters.map((cluster) => (
+                <div key={cluster.key} className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="min-w-0 flex-1 text-sm">{cluster.label}</p>
                   <RubricValuePicker
-                    value={values[param.id] ?? null}
-                    onChange={(v) => updateValue(param.id, v)}
-                    maxValue={param.maxValue}
-                    anchors={param.rubricAnchors as Record<string, string> | null}
+                    value={values[cluster.parameterIds[0]] ?? null}
+                    onChange={(v) => updateCluster(cluster.parameterIds, v)}
+                    maxValue={cluster.maxValue}
+                    anchors={cluster.rubricAnchors as Record<string, string> | null}
                   />
                 </div>
               ))}

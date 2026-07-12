@@ -37,7 +37,7 @@ export default async function RegionHomePage({
         },
       },
     }),
-    prisma.activity.findMany({ orderBy: { order: "asc" } }),
+    prisma.activity.findMany({ where: { active: true }, orderBy: { order: "asc" } }),
   ]);
 
   const selectedActivity = activities.find((act) => act.code === activityParam) || activities[0];

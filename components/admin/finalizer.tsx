@@ -79,8 +79,7 @@ export function Finalizer({
               <ShieldAlert className="size-3.5 text-amber-500" /> Ketentuan Kelulusan Minimum:
             </p>
             <ul className="list-disc pl-4 space-y-0.5 text-[10px] text-muted-foreground">
-              <li>Kehadiran & Keaktifan minimal 70% di sesi pertemuan.</li>
-              <li>Lolos tes Mars Electics dengan nilai minimal 70.</li>
+              <li>Kehadiran (rata-rata sub-nilai Kebersamaan/A.1) minimal 70%.</li>
               <li>Maba yang tidak memenuhi kriteria di atas otomatis ditandai <strong>TIDAK LULUS</strong>.</li>
             </ul>
           </div>

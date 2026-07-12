@@ -28,6 +28,7 @@ export default async function RegionRecapPage() {
       },
     }),
     prisma.material.findMany({
+      where: { active: true, activity: { active: true } },
       orderBy: [{ activity: { order: "asc" } }, { order: "asc" }],
       include: {
         parameters: { where: { active: true } },

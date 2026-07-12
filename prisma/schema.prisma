@@ -227,6 +227,10 @@ model Activity {
   name         String
   order        Int
   isImportOnly Boolean  @default(false) // e.g. Proker fakultas: no mentor input at all
+  /// Retire without deleting — once sessions/scores exist under an activity,
+  /// hard-delete is rightly blocked by FK constraints (protects real mentor
+  /// data). Deactivating hides it from active use everywhere else instead.
+  active       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
   sessions  ActivitySession[]
@@ -261,6 +265,8 @@ model Material {
   code       String // e.g. KWYA, BMB, JAD, HTWF, WUWE, WAWASAN_TEKNOLOGI
   name       String
   order      Int
+  /// Same rationale as Activity.active — retire without breaking FK integrity.
+  active     Boolean  @default(true)
   createdAt  DateTime @default(now())
 
   parameters Parameter[]
@@ -279,6 +285,11 @@ model Parameter {
   type           ParameterType
   subCode        String // e.g. "B3", "A1"
   name           String
+  /// Groups parameters into ONE mentor-facing input ("Rumpun Penilaian").
+  /// Parameters sharing (materialId, clusterLabel) render as a single
+  /// control in the scoring UI; saving fans the same 1-4 value out to
+  /// every parameter in the group. Null = stands alone (status quo).
+  clusterLabel   String?
   /// Placeholder rubric text pending PSDM sign-off — see seed.ts note.
   /// Shape: { "1": "...", "2": "...", "3": "...", "4": "..." }
   rubricAnchors  Json?

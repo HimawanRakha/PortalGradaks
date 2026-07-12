@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, Edit2, Trash2, Calendar, ClipboardList } from "lucide-react";
+import { Loader2, Plus, Edit2, Trash2, Calendar, ClipboardList, EyeOff, Eye } from "lucide-react";
 import { SessionMode } from "@/app/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -21,6 +21,7 @@ import {
 import {
   createActivityAction,
   updateActivityAction,
+  setActivityActiveAction,
   deleteActivityAction,
   createSessionAction,
   updateSessionAction,
@@ -42,6 +43,7 @@ type ActivityData = {
   name: string;
   order: number;
   isImportOnly: boolean;
+  active: boolean;
   sessions: SessionData[];
 };
 
@@ -56,6 +58,7 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
   const [activityName, setActivityName] = useState("");
   const [activityOrder, setActivityOrder] = useState("");
   const [activityIsImport, setActivityIsImport] = useState(false);
+  const [activityActive, setActivityActive] = useState(true);
 
   // Session Modal State
   const [isSessionOpen, setIsSessionOpen] = useState(false);
@@ -74,12 +77,14 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
       setActivityName(activity.name);
       setActivityOrder(String(activity.order));
       setActivityIsImport(activity.isImportOnly);
+      setActivityActive(activity.active);
     } else {
       setActivityEditId(null);
       setActivityCode("");
       setActivityName("");
       setActivityOrder(String(activities.length + 1));
       setActivityIsImport(false);
+      setActivityActive(true);
     }
     setIsActivityOpen(true);
   };
@@ -117,6 +122,7 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
         name: activityName,
         order: Number(activityOrder),
         isImportOnly: activityIsImport,
+        active: activityActive,
       };
 
       if (activityEditId) {
@@ -128,6 +134,18 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
       if (res.ok) {
         toast.success(activityEditId ? "Kegiatan diperbarui." : "Kegiatan dibuat.");
         setIsActivityOpen(false);
+        window.location.reload();
+      } else {
+        toast.error(res.error);
+      }
+    });
+  };
+
+  const handleToggleActivityActive = (id: string, nextActive: boolean) => {
+    startTransition(async () => {
+      const res = await setActivityActiveAction(id, nextActive);
+      if (res.ok) {
+        toast.success(nextActive ? "Kegiatan diaktifkan kembali." : "Kegiatan dinonaktifkan.");
         window.location.reload();
       } else {
         toast.error(res.error);
@@ -211,7 +229,7 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
 
       <div className="grid gap-6">
         {activities.map((activity) => (
-          <Card key={activity.id} className="overflow-hidden">
+          <Card key={activity.id} className={`overflow-hidden ${!activity.active ? "opacity-60" : ""}`}>
             <CardHeader className="bg-muted/30 border-b pb-4 flex flex-row items-center justify-between gap-4 space-y-0">
               <div>
                 <div className="flex items-center gap-2">
@@ -224,6 +242,15 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
                       Hanya Impor
                     </span>
                   )}
+                  <span
+                    className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${
+                      activity.active
+                        ? "bg-green-500/10 text-green-500 border-green-500/20"
+                        : "bg-gray-500/10 text-gray-500 border-gray-500/20"
+                    }`}
+                  >
+                    {activity.active ? "Aktif" : "Nonaktif"}
+                  </span>
                 </div>
                 <CardDescription className="text-xs mt-1">Urutan ke-{activity.order} di alur pengembangan</CardDescription>
               </div>
@@ -231,6 +258,15 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
                 <Button size="xs" variant="outline" onClick={() => openActivityModal(activity)}>
                   <Edit2 className="size-3" />
                   Edit
+                </Button>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => handleToggleActivityActive(activity.id, !activity.active)}
+                  disabled={pending}
+                >
+                  {activity.active ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+                  {activity.active ? "Nonaktifkan" : "Aktifkan"}
                 </Button>
                 <Button size="xs" variant="destructive" onClick={() => handleDeleteActivity(activity.id, activity.name)}>
                   <Trash2 className="size-3" />
@@ -332,6 +368,12 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
               <Checkbox id="act-import" checked={activityIsImport} onCheckedChange={(val) => setActivityIsImport(!!val)} />
               <Label htmlFor="act-import" className="font-normal cursor-pointer select-none">
                 Hanya Impor (tidak ada pengisian manual dari mentor, misal: Proker Fakultas)
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="act-active" checked={activityActive} onCheckedChange={(val) => setActivityActive(!!val)} />
+              <Label htmlFor="act-active" className="font-normal cursor-pointer select-none">
+                Aktif (muncul di form scoring mentor & dashboard pemantauan)
               </Label>
             </div>
           </div>

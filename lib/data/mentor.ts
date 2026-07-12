@@ -14,9 +14,10 @@ export async function requireMentorUnit(user: SessionUser) {
 
 export async function getActivitiesOverview() {
   return prisma.activity.findMany({
+    where: { active: true },
     orderBy: { order: "asc" },
     include: {
-      materials: { orderBy: { order: "asc" }, include: { parameters: { where: { active: true } } } },
+      materials: { where: { active: true }, orderBy: { order: "asc" }, include: { parameters: { where: { active: true } } } },
       sessions: { orderBy: { code: "asc" } },
     },
   });
@@ -56,7 +57,7 @@ export async function getUnitProgress(unitId: string) {
 
 export async function getMaterialsForActivity(activityCode: string) {
   return prisma.material.findMany({
-    where: { activity: { code: activityCode } },
+    where: { activity: { code: activityCode }, active: true },
     orderBy: { order: "asc" },
     include: { parameters: { where: { active: true }, orderBy: { order: "asc" } } },
   });

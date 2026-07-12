@@ -10,8 +10,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { RubricValuePicker } from "./rubric-value-picker";
 import { createGroupAction, saveGroupScoresAction } from "@/app/(dashboard)/mentor/actions";
+import { groupByCluster } from "@/lib/scoring/clusters";
 
-type Parameter = { id: string; subCode: string; name: string; maxValue: number; rubricAnchors: unknown };
+type Parameter = { id: string; subCode: string; name: string; maxValue: number; rubricAnchors: unknown; clusterLabel: string | null; order: number };
 type Student = { id: string; name: string; nrp: string };
 type GroupData = {
   id: string;
@@ -86,7 +87,16 @@ function GroupCard({ group, parameters }: { group: GroupData; parameters: Parame
 
   const [values, setValues] = useState<Record<string, number | null>>(initial);
   const [pending, startTransition] = useTransition();
-  const filled = Object.values(values).filter((v) => v !== null && v !== undefined).length;
+  const clusters = groupByCluster(parameters);
+  const filled = clusters.filter((c) => values[c.parameterIds[0]] !== null && values[c.parameterIds[0]] !== undefined).length;
+
+  function updateCluster(parameterIds: string[], value: number | null) {
+    setValues((prev) => {
+      const next = { ...prev };
+      for (const id of parameterIds) next[id] = value;
+      return next;
+    });
+  }
 
   function save() {
     startTransition(async () => {
@@ -105,19 +115,19 @@ function GroupCard({ group, parameters }: { group: GroupData; parameters: Parame
             {group.members.map((m) => m.student.name).join(", ") || "Belum ada anggota"}
           </p>
         </div>
-        <Badge variant={filled >= parameters.length ? "default" : "secondary"}>
-          {filled}/{parameters.length}
+        <Badge variant={filled >= clusters.length ? "default" : "secondary"}>
+          {filled}/{clusters.length}
         </Badge>
       </CardHeader>
       <CardContent className="space-y-3">
-        {parameters.map((param) => (
-          <div key={param.id} className="flex flex-wrap items-center justify-between gap-2">
-            <p className="min-w-0 flex-1 text-sm">{param.name}</p>
+        {clusters.map((cluster) => (
+          <div key={cluster.key} className="flex flex-wrap items-center justify-between gap-2">
+            <p className="min-w-0 flex-1 text-sm">{cluster.label}</p>
             <RubricValuePicker
-              value={values[param.id] ?? null}
-              onChange={(v) => setValues((prev) => ({ ...prev, [param.id]: v }))}
-              maxValue={param.maxValue}
-              anchors={param.rubricAnchors as Record<string, string> | null}
+              value={values[cluster.parameterIds[0]] ?? null}
+              onChange={(v) => updateCluster(cluster.parameterIds, v)}
+              maxValue={cluster.maxValue}
+              anchors={cluster.rubricAnchors as Record<string, string> | null}
             />
           </div>
         ))}
