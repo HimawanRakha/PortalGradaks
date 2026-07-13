@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS, ROLE_LABEL } from "./nav-config";
 import { Role } from "@/app/generated/prisma/enums";
@@ -20,8 +19,8 @@ export function Sidebar({ role, unitLabel }: { role: Role; unitLabel?: string })
   return (
     <aside className="hidden md:flex md:w-64 md:flex-col md:border-r md:bg-sidebar md:text-sidebar-foreground">
       <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-5">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-          <GraduationCap className="size-4.5" />
+        <div className="flex size-8 items-center justify-center">
+          <img src="/BEMFTEIC.png" alt="Logo BEM FTEIC" className="size-8 object-contain" />
         </div>
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold leading-tight">Portal MABA 26</p>

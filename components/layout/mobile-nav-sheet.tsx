@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { GraduationCap, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -31,8 +31,8 @@ export function MobileNavSheet({ role }: { role: Role }) {
       <SheetContent side="left" className="w-72 p-0">
         <SheetHeader className="border-b px-5 py-4">
           <SheetTitle className="flex items-center gap-2 text-left">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <GraduationCap className="size-4.5" />
+            <div className="flex size-8 items-center justify-center">
+              <img src="/BEMFTEIC.png" alt="Logo BEM FTEIC" className="size-8 object-contain" />
             </div>
             <div>
               <p className="text-sm font-semibold leading-tight">Portal MABA 26</p>

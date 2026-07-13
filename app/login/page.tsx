@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { GraduationCap } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LoginForm } from "./login-form";
@@ -22,8 +21,8 @@ export default function LoginPage() {
       </div>
       <div className="flex w-full max-w-sm flex-col gap-6">
         <div className="flex flex-col items-center gap-2 text-center">
-          <div className="flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <GraduationCap className="size-6" />
+          <div className="flex size-16 items-center justify-center">
+            <img src="/BEMFTEIC.png" alt="Logo BEM FTEIC" className="size-16 object-contain" />
           </div>
           <h1 className="text-lg font-semibold">Portal Pengembangan MABA 26</h1>
           <p className="text-sm text-muted-foreground">GRADAKS 2026 — PSDM BEM FTEIC</p>
