@@ -341,6 +341,15 @@ export function ParametersManager({
               </div>
             </div>
 
+            <div className="rounded-lg border bg-muted/30 p-2.5 text-[10px] text-muted-foreground space-y-1">
+              <p>
+                <span className="font-semibold text-foreground">Nilai Personal</span> (A.1/A.2/B.1/B.2/C.1/C.2): kode cukup <em>mengandung</em> salah satunya — boleh ada tambahan, mis. <code className="bg-background px-1 rounded border">A.2_1</code>, <code className="bg-background px-1 rounded border">A.2_2</code> untuk beberapa parameter di sub-nilai yang sama.
+              </p>
+              <p>
+                <span className="font-semibold text-foreground">Nilai Keahlian</span> (M/K/MB/KW): bagian sebelum tanda <code className="bg-background px-1 rounded border">_</code> atau <code className="bg-background px-1 rounded border">.</code> pertama harus <em>persis sama</em> — mis. <code className="bg-background px-1 rounded border">M_1</code>, <code className="bg-background px-1 rounded border">M_2</code> (bukan <code className="bg-background px-1 rounded border">M1</code> tanpa pemisah, dan bukan <code className="bg-background px-1 rounded border">Manajerial_1</code>).
+              </p>
+            </div>
+
             <div className="grid gap-1">
               <Label htmlFor="param-name">Nama Parameter Penilaian</Label>
               <Input id="param-name" placeholder="Kedisiplinan dan kerapian atribut" value={name} onChange={(e) => setName(e.target.value)} className="h-8" />
