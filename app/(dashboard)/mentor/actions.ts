@@ -160,6 +160,19 @@ export async function confirmSessionAction(sessionId: string): Promise<ActionRes
   }
 }
 
+export async function cancelConfirmSessionAction(sessionId: string): Promise<ActionResult> {
+  try {
+    const user = await requireMentor();
+    await prisma.confirmation.delete({
+      where: { sessionId_unitId: { sessionId, unitId: user.unitId! } },
+    });
+    revalidatePath("/mentor/confirmations");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Gagal membatalkan konfirmasi sesi." };
+  }
+}
+
 export async function raiseFlagAction(studentId: string | null, message: string): Promise<ActionResult> {
   try {
     const user = await requireMentor();
