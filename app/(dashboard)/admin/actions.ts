@@ -90,15 +90,18 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
   if (!name || !roleRaw || !VALID_ROLES.has(roleRaw)) {
     return { action: ImportRowAction.FAILED, errorReason: `Kolom role harus salah satu dari ${Array.from(VALID_ROLES).join(", ")}.` };
   }
-  if (!password || password.length < 6) {
-    return { action: ImportRowAction.FAILED, errorReason: "Password wajib diisi, minimal 6 karakter." };
-  }
 
   const existingUser = await prisma.user.findUnique({ where: { nrp } });
-  if (existingUser) {
-    // Never silently overwrite an existing login's password via bulk import — use the
-    // dedicated reset-password action in Master Data > Akun for that instead.
-    return { action: ImportRowAction.SKIPPED_DUPLICATE, errorReason: `Akun dengan NRP "${nrp}" sudah ada — gunakan reset password di Master Data.` };
+
+  // Password validation: required for new users, optional for existing users
+  if (!existingUser) {
+    if (!password || password.length < 6) {
+      return { action: ImportRowAction.FAILED, errorReason: "Password wajib diisi, minimal 6 karakter untuk akun baru." };
+    }
+  } else {
+    if (password && password.length < 6) {
+      return { action: ImportRowAction.FAILED, errorReason: "Password baru minimal harus 6 karakter jika ingin diubah." };
+    }
   }
 
   let unitId: string | null = null;
@@ -108,7 +111,9 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
     if (!unit) return { action: ImportRowAction.FAILED, errorReason: `Unit "${unitCode}" tidak ditemukan.` };
     if (unit.id) {
       const taken = await prisma.user.findUnique({ where: { unitId: unit.id } });
-      if (taken) return { action: ImportRowAction.FAILED, errorReason: `Unit "${unitCode}" sudah punya mentor.` };
+      if (taken && (!existingUser || taken.id !== existingUser.id)) {
+        return { action: ImportRowAction.FAILED, errorReason: `Unit "${unitCode}" sudah punya mentor.` };
+      }
     }
     unitId = unit.id;
   }
@@ -119,6 +124,26 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
     const region = await prisma.region.findUnique({ where: { code: regionCode } });
     if (!region) return { action: ImportRowAction.FAILED, errorReason: `Region "${regionCode}" tidak ditemukan.` };
     regionId = region.id;
+  }
+
+  if (existingUser) {
+    let passwordHash = existingUser.passwordHash;
+    if (password && password.trim() !== "") {
+      passwordHash = await bcrypt.hash(password, 10);
+    }
+    await prisma.user.update({
+      where: { id: existingUser.id },
+      data: { name, role: roleRaw as Role, passwordHash, unitId, regionId },
+    });
+    return {
+      action: ImportRowAction.UPDATED,
+      previousValueSnapshot: {
+        name: existingUser.name,
+        role: existingUser.role,
+        unitId: existingUser.unitId,
+        regionId: existingUser.regionId,
+      },
+    };
   }
 
   const passwordHash = await bcrypt.hash(password, 10);

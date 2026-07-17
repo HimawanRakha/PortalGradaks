@@ -88,11 +88,14 @@ async function seedSettings() {
 }
 
 async function seedDepartments() {
-  const departments = Array.from({ length: 5 }, (_, i) => ({
-    id: randomUUID(),
-    code: `DEP${i + 1}`,
-    name: `Departemen ${i + 1} (placeholder)`,
-  }));
+  const departments = [
+    { id: randomUUID(), code: "EL", name: "Teknik Elektro" },
+    { id: randomUUID(), code: "IF", name: "Teknik Informatika" },
+    { id: randomUUID(), code: "SI", name: "Sistem Informasi" },
+    { id: randomUUID(), code: "BM", name: "Teknik Biomedik" },
+    { id: randomUUID(), code: "TK", name: "Teknik Komputer" },
+    { id: randomUUID(), code: "TI", name: "Teknologi Informasi" },
+  ];
   await prisma.department.createMany({ data: departments, skipDuplicates: true });
   return departments;
 }

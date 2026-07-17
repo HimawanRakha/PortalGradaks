@@ -48,7 +48,7 @@ export async function createActivityAction(data: {
 }): Promise<ActionResult> {
   try {
     await assertAdmin();
-    await prisma.activity.create({
+    const activity = await prisma.activity.create({
       data: {
         code: data.code.toUpperCase().trim(),
         name: data.name.trim(),
@@ -57,6 +57,17 @@ export async function createActivityAction(data: {
         active: data.active ?? true,
       },
     });
+
+    // Automatically create the synthetic "UMUM" session for this activity
+    await prisma.activitySession.create({
+      data: {
+        activityId: activity.id,
+        code: "UMUM",
+        name: "Umum",
+        mode: SessionMode.NA,
+      },
+    });
+
     revalidatePath("/admin/master-data/activities");
     revalidatePath("/admin/master-data");
     return { ok: true };

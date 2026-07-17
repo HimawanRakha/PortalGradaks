@@ -76,7 +76,24 @@ export async function getMaterialsForActivity(activityCode: string) {
 }
 
 export async function getUmumSession(activityCode: string) {
-  return prisma.activitySession.findFirstOrThrow({ where: { activity: { code: activityCode }, code: "UMUM" } });
+  const session = await prisma.activitySession.findFirst({
+    where: { activity: { code: activityCode }, code: "UMUM" },
+  });
+  if (session) return session;
+
+  const activity = await prisma.activity.findUnique({ where: { code: activityCode } });
+  if (!activity) {
+    throw new Error(`Kegiatan dengan kode "${activityCode}" tidak ditemukan.`);
+  }
+
+  return prisma.activitySession.create({
+    data: {
+      activityId: activity.id,
+      code: "UMUM",
+      name: "Umum",
+      mode: "NA",
+    },
+  });
 }
 
 export async function getRealSessions(activityCode: string) {
