@@ -21,10 +21,10 @@ export default async function TemuFteicPage({
 
   const { sessionId: sessionParam } = await searchParams;
 
-  // 1. Fetch all real sessions under Temu FTEIC (TEMU_1, TEMU_2, TEMU_3)
+  // 1. Fetch all real sessions under Temu FTEIC (TEMU_0, TEMU_1, TEMU_2, TEMU_3)
   const fteicSessions = await prisma.activitySession.findMany({
     where: {
-      activity: { code: { in: ["TEMU_1", "TEMU_2", "TEMU_3"] } },
+      activity: { code: { in: ["TEMU_0", "TEMU_1", "TEMU_2", "TEMU_3"] } },
       code: { not: "UMUM" },
     },
     orderBy: [{ activity: { order: "asc" } }, { code: "asc" }],
