@@ -23,6 +23,7 @@ enum Role {
   KEPALA_REGION
   MENTOR
   DAMEN
+  EVENT // Panitia event Inclenation — menilai Terkompak (region) & Winner Throne Battle (unit)
 }
 
 /// The 5 input mechanisms from brief §4 — the one genuinely closed taxonomy
@@ -33,12 +34,22 @@ enum ParameterType {
   C // Rubrik penugasan berbutir, group-scored
   D // Post-test / pengujian
   E // Data eksternal & verifikasi
+  F // Kriteria kompetisi event Inclenation (Teraktif/Terdisiplin/Pelanggaran/Terkompak/Throne
+  // Battle) — di luar taksonomi brief §4 karena ini bukan input Nilai Personal/Keahlian sama
+  // sekali, hanya skor kompetisi unit/region. Netral terhadap maxValue (lihat parameters-manager).
 }
 
+/// UNIT_MENTOR/UNIT_EVENT/REGION_EVENT drive BOTH storage (UnitEventScore vs
+/// RegionEventScore vs the untouched per-student Score) and who's allowed to
+/// fill the value — a new parameter just picks the right one, zero code
+/// changes needed elsewhere (see lib/scoring/event-calculate.ts).
 enum InputMethod {
   MENTOR
   IMPORT
   GROUP
+  UNIT_MENTOR // one value per Unit, entered by that unit's Mentor (Teraktif/Terdisiplin/Pelanggaran)
+  UNIT_EVENT // one value per Unit, entered by the Event committee (Winner Throne Battle)
+  REGION_EVENT // one value per Region, entered by the Event committee (Terkompak)
 }
 
 enum AttendanceStatus {
@@ -121,8 +132,9 @@ model Region {
   name      String
   createdAt DateTime @default(now())
 
-  units Unit[]
-  users User[]
+  units       Unit[]
+  users       User[]
+  eventScores RegionEventScore[]
 
   @@map("regions")
 }
@@ -150,11 +162,12 @@ model Unit {
   regionId  String
   createdAt DateTime @default(now())
 
-  mentor        User?          @relation("MentorUnit")
+  mentor        User?            @relation("MentorUnit")
   students      Student[]
   groups        Group[]
   confirmations Confirmation[]
   flags         Flag[]
+  eventScores   UnitEventScore[]
 
   @@index([regionId])
   @@map("units")
@@ -173,17 +186,19 @@ model User {
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
 
-  raisedFlags        Flag[]           @relation("FlagRaisedBy")
-  resolvedFlags      Flag[]           @relation("FlagResolvedBy")
-  imports            Import[]
-  verifiedLogbooks   LogbookEntry[]   @relation("LogbookVerifiedBy")
-  verifications      Verification[]
-  confirmations      Confirmation[]
-  enteredScores      Score[]          @relation("ScoreEnteredBy")
-  enteredAttendance  Attendance[]     @relation("AttendanceEnteredBy")
-  enteredGroupScores GroupScore[]     @relation("GroupScoreEnteredBy")
-  finalizedRaports   RaportSnapshot[]
-  auditLogs          AuditLog[]
+  raisedFlags              Flag[]             @relation("FlagRaisedBy")
+  resolvedFlags            Flag[]             @relation("FlagResolvedBy")
+  imports                  Import[]
+  verifiedLogbooks         LogbookEntry[]     @relation("LogbookVerifiedBy")
+  verifications            Verification[]
+  confirmations            Confirmation[]
+  enteredScores            Score[]            @relation("ScoreEnteredBy")
+  enteredAttendance        Attendance[]       @relation("AttendanceEnteredBy")
+  enteredGroupScores       GroupScore[]       @relation("GroupScoreEnteredBy")
+  enteredUnitEventScores   UnitEventScore[]   @relation("UnitEventScoreEnteredBy")
+  enteredRegionEventScores RegionEventScore[] @relation("RegionEventScoreEnteredBy")
+  finalizedRaports         RaportSnapshot[]
+  auditLogs                AuditLog[]
 
   @@index([regionId])
   @@map("users")
@@ -308,8 +323,10 @@ model Parameter {
   active         Boolean       @default(true) // retire without deleting history
   createdAt      DateTime      @default(now())
 
-  scores      Score[]
-  groupScores GroupScore[]
+  scores            Score[]
+  groupScores       GroupScore[]
+  unitEventScores   UnitEventScore[]
+  regionEventScores RegionEventScore[]
 
   @@unique([materialId, subCode])
   @@map("parameters")
@@ -397,6 +414,52 @@ model GroupScore {
 
   @@unique([groupId, parameterId])
   @@map("group_scores")
+}
+
+// ============================================================
+// INCLENATION EVENT SCORING — a separate competition scoreboard (Terbaik /
+// Terdisiplin / Terkompak) for the Inclenation event, deliberately parallel
+// to Score/GroupScore rather than reusing them: it scores whole Units and
+// Regions, never individual students, and must NEVER feed
+// Parameter.personalWeight/skillWeight (see lib/scoring/event-calculate.ts).
+// Group/GroupScore weren't reused because Group.unitId is non-nullable and
+// group membership is mentor-curated — awkward fits for "the whole unit" or
+// "one region" as the scoring subject. Same long-format + unique-constraint
+// anti-duplicate shape as GroupScore otherwise.
+// ============================================================
+
+model UnitEventScore {
+  id              String    @id @default(cuid())
+  unit            Unit      @relation(fields: [unitId], references: [id])
+  unitId          String
+  parameter       Parameter @relation(fields: [parameterId], references: [id])
+  parameterId     String
+  value           Int?
+  enteredBy       User?     @relation("UnitEventScoreEnteredBy", fields: [enteredByUserId], references: [id])
+  enteredByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([unitId, parameterId])
+  @@index([parameterId])
+  @@map("unit_event_scores")
+}
+
+model RegionEventScore {
+  id              String    @id @default(cuid())
+  region          Region    @relation(fields: [regionId], references: [id])
+  regionId        String
+  parameter       Parameter @relation(fields: [parameterId], references: [id])
+  parameterId     String
+  value           Int?
+  enteredBy       User?     @relation("RegionEventScoreEnteredBy", fields: [enteredByUserId], references: [id])
+  enteredByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([regionId, parameterId])
+  @@index([parameterId])
+  @@map("region_event_scores")
 }
 
 model Attendance {

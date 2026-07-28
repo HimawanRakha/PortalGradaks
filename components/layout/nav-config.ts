@@ -15,6 +15,7 @@ import {
   FileSpreadsheet,
   Download,
   History,
+  Trophy,
 } from "lucide-react";
 import { Role } from "@/app/generated/prisma/enums";
 
@@ -31,6 +32,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   [Role.KEPALA_REGION]: "Kepala Region",
   [Role.MENTOR]: "Mentor",
   [Role.DAMEN]: "Damen",
+  [Role.EVENT]: "Panitia Event",
 };
 
 export const ROLE_HOME: Record<Role, string> = {
@@ -38,6 +40,7 @@ export const ROLE_HOME: Record<Role, string> = {
   [Role.KEPALA_REGION]: "/kepala-region",
   [Role.MENTOR]: "/mentor",
   [Role.DAMEN]: "/damen",
+  [Role.EVENT]: "/event",
 };
 
 export const NAV_ITEMS: Record<Role, NavItem[]> = {
@@ -60,6 +63,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "Kalibrasi Mentor", href: "/kepala-region/calibration", icon: Scale, primary: true },
     { label: "Papan Eskalasi", href: "/kepala-region/escalation", icon: AlertTriangle, primary: true },
     { label: "Rekap Sub-nilai", href: "/kepala-region/recap", icon: BarChart3, primary: true },
+    { label: "Leaderboard Event", href: "/event/leaderboard", icon: Trophy },
   ],
   [Role.ADMIN]: [
     { label: "Monitoring", href: "/admin", icon: Home, primary: true },
@@ -69,5 +73,11 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "Finalisasi", href: "/admin/finalization", icon: FileSpreadsheet, primary: true },
     { label: "Ekspor", href: "/admin/exports", icon: Download },
     { label: "Log Aktivitas", href: "/admin/activity-log", icon: History },
+    { label: "Leaderboard Event", href: "/event/leaderboard", icon: Trophy },
+  ],
+  [Role.EVENT]: [
+    { label: "Beranda", href: "/event", icon: Home, primary: true },
+    { label: "Penilaian", href: "/event/scoring", icon: ClipboardList, primary: true },
+    { label: "Leaderboard", href: "/event/leaderboard", icon: Trophy, primary: true },
   ],
 };

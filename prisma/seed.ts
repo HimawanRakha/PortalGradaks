@@ -17,13 +17,58 @@ const DEMO_PASSWORD = "gradaks2026";
 const SHOWCASE_UNIT_COUNT = 8;
 
 const FIRST_NAMES = [
-  "Ahmad", "Budi", "Citra", "Dewi", "Eka", "Fajar", "Gita", "Hana", "Indra", "Joko",
-  "Kartika", "Lestari", "Muhammad", "Nadia", "Oki", "Putri", "Qori", "Rizky", "Siti", "Taufik",
-  "Umar", "Vina", "Wahyu", "Yusuf", "Zahra", "Agus", "Bella", "Cahyo", "Dian", "Erlangga",
+  "Ahmad",
+  "Budi",
+  "Citra",
+  "Dewi",
+  "Eka",
+  "Fajar",
+  "Gita",
+  "Hana",
+  "Indra",
+  "Joko",
+  "Kartika",
+  "Lestari",
+  "Muhammad",
+  "Nadia",
+  "Oki",
+  "Putri",
+  "Qori",
+  "Rizky",
+  "Siti",
+  "Taufik",
+  "Umar",
+  "Vina",
+  "Wahyu",
+  "Yusuf",
+  "Zahra",
+  "Agus",
+  "Bella",
+  "Cahyo",
+  "Dian",
+  "Erlangga",
 ];
 const LAST_NAMES = [
-  "Pratama", "Saputra", "Wijaya", "Kusuma", "Santoso", "Wibowo", "Hidayat", "Setiawan", "Permata", "Nugroho",
-  "Rahayu", "Suryani", "Gunawan", "Handoko", "Susanto", "Anggraini", "Firmansyah", "Maulana", "Ramadhan", "Utami",
+  "Pratama",
+  "Saputra",
+  "Wijaya",
+  "Kusuma",
+  "Santoso",
+  "Wibowo",
+  "Hidayat",
+  "Setiawan",
+  "Permata",
+  "Nugroho",
+  "Rahayu",
+  "Suryani",
+  "Gunawan",
+  "Handoko",
+  "Susanto",
+  "Anggraini",
+  "Firmansyah",
+  "Maulana",
+  "Ramadhan",
+  "Utami",
 ];
 
 /** Real region/unit names — each "empire" is a Region, each city within it is a mentoring Unit. */
@@ -146,13 +191,14 @@ async function seedStudents(units: { id: string }[], departments: { id: string }
 async function seedUsers(regions: { id: string; code: string }[], units: { id: string; code: string; regionId: string }[]) {
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 10);
 
-  const admins = [
-    { id: randomUUID(), nrp: "admin", name: "Admin PSDM Utama", role: Role.ADMIN, passwordHash, regionId: null, unitId: null },
-  ];
+  const admins = [{ id: randomUUID(), nrp: "admin", name: "Admin PSDM Utama", role: Role.ADMIN, passwordHash, regionId: null, unitId: null }];
 
-  const damens = [
-    { id: randomUUID(), nrp: "damen1", name: "Damen Demo", role: Role.DAMEN, passwordHash, regionId: null, unitId: null },
-  ];
+  const damens = [{ id: randomUUID(), nrp: "damen1", name: "Damen Demo", role: Role.DAMEN, passwordHash, regionId: null, unitId: null }];
+
+  // Global scope (no regionId/unitId) — the Inclenation event committee judges
+  // Terkompak/Throne Battle across every region, same reach as Admin, but
+  // restricted in lib/auth/dal.ts to just the event-scoring actions.
+  const events = [{ id: randomUUID(), nrp: "event1", name: "Panitia Event Inclenation", role: Role.EVENT, passwordHash, regionId: null, unitId: null }];
 
   const krs = regions.map((region) => ({
     id: randomUUID(),
@@ -174,8 +220,8 @@ async function seedUsers(regions: { id: string; code: string }[], units: { id: s
     unitId: unit.id,
   }));
 
-  await prisma.user.createMany({ data: [...admins, ...damens, ...krs, ...mentors], skipDuplicates: true });
-  return { admins, krs, mentors };
+  await prisma.user.createMany({ data: [...admins, ...damens, ...events, ...krs, ...mentors], skipDuplicates: true });
+  return { admins, krs, mentors, events };
 }
 
 type SeededActivity = { id: string; code: string; order: number };
@@ -314,35 +360,33 @@ async function seedProgramStructure() {
   }
 
   // --- Inclenation materials ---
-  const kwya = await seedMaterialWithParams(
-    inclenation.id,
-    "KWYA",
-    "Know Who You Are",
-    1,
-    [
-      { subCode: "C.1", name: "Pengenalan Diri & Analisis SWOT (The Foundation)", type: ParameterType.B, personalWeight: 0.1172, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 1, clusterLabel: "Intrapersonal & Self-Mastery" },
-      { subCode: "B.1_1", name: "Self-Awareness", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 2, clusterLabel: "Intrapersonal & Self-Mastery" },
-      { subCode: "B.1_2", name: "Self-Regulation", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 3, clusterLabel: "Intrapersonal & Self-Mastery" },
-      { subCode: "B.1_3", name: "Internal Motivation", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 4, clusterLabel: "Intrapersonal & Self-Mastery" },
-      { subCode: "B.1_4", name: "Penentuan Target dengan SMART Goals", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 5, clusterLabel: "Strategic Planning" },
-      { subCode: "B.1_5", name: "Skala Prioritas: Eisenhower Matrix", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 6, clusterLabel: "Strategic Planning" },
-      { subCode: "C.2_1", name: "Adaptabilitas & Agility (Sistem & Sosial)", type: ParameterType.B, personalWeight: 0.0476, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 7, clusterLabel: "Interpersonal & Agility" },
-      { subCode: "C.2_2", name: "Social Skill Management", type: ParameterType.B, personalWeight: 0.0476, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 8, clusterLabel: "Interpersonal & Agility" },
-    ]
-  );
+  const kwya = await seedMaterialWithParams(inclenation.id, "KWYA", "Know Who You Are", 1, [
+    {
+      subCode: "C.1",
+      name: "Pengenalan Diri & Analisis SWOT (The Foundation)",
+      type: ParameterType.B,
+      personalWeight: 0.1172,
+      skillWeight: null,
+      maxValue: 4,
+      inputMethod: InputMethod.MENTOR,
+      order: 1,
+      clusterLabel: "Intrapersonal & Self-Mastery",
+    },
+    { subCode: "B.1_1", name: "Self-Awareness", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 2, clusterLabel: "Intrapersonal & Self-Mastery" },
+    { subCode: "B.1_2", name: "Self-Regulation", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 3, clusterLabel: "Intrapersonal & Self-Mastery" },
+    { subCode: "B.1_3", name: "Internal Motivation", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 4, clusterLabel: "Intrapersonal & Self-Mastery" },
+    { subCode: "B.1_4", name: "Penentuan Target dengan SMART Goals", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 5, clusterLabel: "Strategic Planning" },
+    { subCode: "B.1_5", name: "Skala Prioritas: Eisenhower Matrix", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 6, clusterLabel: "Strategic Planning" },
+    { subCode: "C.2_1", name: "Adaptabilitas & Agility (Sistem & Sosial)", type: ParameterType.B, personalWeight: 0.0476, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 7, clusterLabel: "Interpersonal & Agility" },
+    { subCode: "C.2_2", name: "Social Skill Management", type: ParameterType.B, personalWeight: 0.0476, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 8, clusterLabel: "Interpersonal & Agility" },
+  ]);
 
-  const bmb = await seedMaterialWithParams(
-    inclenation.id,
-    "BMB",
-    "Berani Menjadi Berbeda",
-    2,
-    [
-      { subCode: "B.1_1", name: "Dikotomi Kendali", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 1, clusterLabel: "Pengendalian Diri & Nilai" },
-      { subCode: "B.1_2", name: "Prioritas Nilai (Selective Caring)", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 2, clusterLabel: "Pengendalian Diri & Nilai" },
-      { subCode: "B.1_3", name: "Keberanian Tidak Disukai", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 3, clusterLabel: "Ketegasan & Batasan" },
-      { subCode: "B.1_4", name: "Boundary Setting (Melepas Beban Ekspektasi)", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 4, clusterLabel: "Ketegasan & Batasan" },
-    ]
-  );
+  const bmb = await seedMaterialWithParams(inclenation.id, "BMB", "Berani Menjadi Berbeda", 2, [
+    { subCode: "B.1_1", name: "Dikotomi Kendali", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 1, clusterLabel: "Pengendalian Diri & Nilai" },
+    { subCode: "B.1_2", name: "Prioritas Nilai (Selective Caring)", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 2, clusterLabel: "Pengendalian Diri & Nilai" },
+    { subCode: "B.1_3", name: "Keberanian Tidak Disukai", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 3, clusterLabel: "Ketegasan & Batasan" },
+    { subCode: "B.1_4", name: "Boundary Setting (Melepas Beban Ekspektasi)", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 4, clusterLabel: "Ketegasan & Batasan" },
+  ]);
 
   const wawasanTeknologi = await seedMaterialWithParams(inclenation.id, "WAWASAN_TEKNOLOGI", "Wawasan Teknologi", 3, [
     { subCode: "C.1_1", name: "Berpikir Kritis", type: ParameterType.B, personalWeight: 0.1172, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 1, clusterLabel: "Substansi & Logika Berpikir" },
@@ -361,16 +405,75 @@ async function seedProgramStructure() {
     { subCode: "A.2", name: "Hafalan & Penghayatan Mars Electics", type: ParameterType.B, personalWeight: 0.3787, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 1 },
   ]);
 
+  // --- Inclenation EVENT competition scoring (Terbaik/Terdisiplin/Terkompak) ---
+  // Deliberately separate from the curriculum materials above: personalWeight/
+  // skillWeight are null on every parameter here so none of this ever leaks
+  // into a maba's Raport. See lib/scoring/event-calculate.ts for the formulas
+  // that read these by Material code + subCode. subCodes are stable/reserved
+  // (esp. TELAT/LAINNYA in Pelanggaran) because the calc engine references
+  // them by name.
+  const teraktif = await seedMaterialWithParams(inclenation.id, "TERAKTIF", "Teraktif (Semakin Tinggi Semakin Baik)", 6, [
+    { subCode: "TERAKTIF", name: "Keaktifan Bertanya/Menjawab", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 12, inputMethod: InputMethod.UNIT_MENTOR, order: 1 },
+  ]);
+
+  const terdisiplin = await seedMaterialWithParams(inclenation.id, "TERDISIPLIN", "Terdisiplin (Semakin Tinggi Semakin Baik)", 7, [
+    { subCode: "H1_KETAATAN", name: "Ketaatan Peraturan", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 5, inputMethod: InputMethod.UNIT_MENTOR, order: 1, clusterLabel: "Hari 1" },
+    { subCode: "H1_KETEPATAN", name: "Ketepatan Jadwal Setiap Kegiatan", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 5, inputMethod: InputMethod.UNIT_MENTOR, order: 2, clusterLabel: "Hari 1" },
+    { subCode: "H1_KESIGAPAN", name: "Paling Cepat Siap Setiap Kegiatan", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 5, inputMethod: InputMethod.UNIT_MENTOR, order: 3, clusterLabel: "Hari 1" },
+    { subCode: "H2_KETAATAN", name: "Ketaatan Peraturan", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 5, inputMethod: InputMethod.UNIT_MENTOR, order: 4, clusterLabel: "Hari 2" },
+    { subCode: "H2_KETEPATAN", name: "Ketepatan Jadwal Setiap Kegiatan", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 5, inputMethod: InputMethod.UNIT_MENTOR, order: 5, clusterLabel: "Hari 2" },
+    { subCode: "H2_KESIGAPAN", name: "Paling Cepat Siap Setiap Kegiatan", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 5, inputMethod: InputMethod.UNIT_MENTOR, order: 6, clusterLabel: "Hari 2" },
+  ]);
+
+  const pelanggaran = await seedMaterialWithParams(inclenation.id, "PELANGGARAN", "Pelanggaran  (Semakin Tinggi Semakin Buruk) Akan Diminus", 8, [
+    { subCode: "BERSERAKAN", name: "Buang Sampah Sembarangan", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 20, inputMethod: InputMethod.UNIT_MENTOR, order: 1 },
+    { subCode: "ATRIBUT", name: "Atribut/Pakaian Tidak Sesuai", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 5, inputMethod: InputMethod.UNIT_MENTOR, order: 2 },
+    { subCode: "TELAT", name: "Telat (Registrasi/Mobilisasi/Kegiatan)", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 20, inputMethod: InputMethod.UNIT_MENTOR, order: 3 },
+    { subCode: "LAINNYA", name: "Pelanggaran Lainnya (ditentukan panitia)", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 20, inputMethod: InputMethod.UNIT_MENTOR, order: 4 },
+  ]);
+
+  const throneBattle = await seedMaterialWithParams(inclenation.id, "THRONE_BATTLE", "Winner Throne Battle (Event)", 9, [
+    { subCode: "THRONE_BATTLE", name: "Winner Throne Battle", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 1, inputMethod: InputMethod.UNIT_EVENT, order: 1 },
+  ]);
+
+  const terkompak = await seedMaterialWithParams(inclenation.id, "TERKOMPAK", "Terkompak (Event)", 10, [
+    { subCode: "KERJASAMA_TIM", name: "Kerjasama Tim", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 1, inputMethod: InputMethod.REGION_EVENT, order: 1 },
+    { subCode: "HAFAL_JARGON", name: "Semua Anggota Unit Hafal Jargon", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 1, inputMethod: InputMethod.REGION_EVENT, order: 2 },
+    { subCode: "KOMPAK_JARGON", name: "Kompak Saat Jargon", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 1, inputMethod: InputMethod.REGION_EVENT, order: 3 },
+    { subCode: "BAGUS_JARGON", name: "Jargon Bagus", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 1, inputMethod: InputMethod.REGION_EVENT, order: 4 },
+    { subCode: "WARNA_DC_MIRIP", name: "Warna Dresscode Mirip", type: ParameterType.F, personalWeight: null, skillWeight: null, maxValue: 1, inputMethod: InputMethod.REGION_EVENT, order: 5 },
+  ]);
+
   const jad = await seedMaterialWithParams(temu1.id, "JAD", "Jangan Asal Debat", 1, [
     { subCode: "C.1", name: "Mengadopsi Pola Pikir Ilmuwan", type: ParameterType.B, personalWeight: 0.1172, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 1, clusterLabel: "Objektivitas & Keterbukaan" },
     { subCode: "B.1", name: "Memisahkan Identitas dari Ide", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 2, clusterLabel: "Objektivitas & Keterbukaan" },
     { subCode: "C.1_B.2_1", name: "Mempraktikkan Confident Humility", type: ParameterType.B, personalWeight: 0.1755, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 3, clusterLabel: "Objektivitas & Keterbukaan" },
-    { subCode: "C.1_B.2_2", name: "Mencari Konflik Tugas, Menghindari Konflik Hubungan", type: ParameterType.B, personalWeight: 0.1755, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 4, clusterLabel: "Manajemen Konflik" },
+    {
+      subCode: "C.1_B.2_2",
+      name: "Mencari Konflik Tugas, Menghindari Konflik Hubungan",
+      type: ParameterType.B,
+      personalWeight: 0.1755,
+      skillWeight: null,
+      maxValue: 4,
+      inputMethod: InputMethod.MENTOR,
+      order: 4,
+      clusterLabel: "Manajemen Konflik",
+    },
   ]);
 
   const htwf = await seedMaterialWithParams(temu2.id, "HTWF", "How to Win Friends and Influence People", 1, [
     { subCode: "C.2_1", name: "Genuine Interest & Smile", type: ParameterType.B, personalWeight: 0.0476, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 1, clusterLabel: "Komunikasi Empatik" },
-    { subCode: "C.2_2", name: "Validasi & Apresiasi Jujur (The Power of Importance)", type: ParameterType.B, personalWeight: 0.0476, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 2, clusterLabel: "Komunikasi Empatik" },
+    {
+      subCode: "C.2_2",
+      name: "Validasi & Apresiasi Jujur (The Power of Importance)",
+      type: ParameterType.B,
+      personalWeight: 0.0476,
+      skillWeight: null,
+      maxValue: 4,
+      inputMethod: InputMethod.MENTOR,
+      order: 2,
+      clusterLabel: "Komunikasi Empatik",
+    },
     { subCode: "C.2_5", name: "Inklusivitas: Bertanya, Bukan Memerintah", type: ParameterType.B, personalWeight: 0.0476, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 3, clusterLabel: "Komunikasi Empatik" },
     { subCode: "B.1", name: "Integritas: Berani Mengakui Kesalahan", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 4, clusterLabel: "Manajemen Hubungan" },
     { subCode: "C.2_3", name: "Menghargai Opini & Anti Debat Kusir", type: ParameterType.B, personalWeight: 0.0476, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 5, clusterLabel: "Manajemen Hubungan" },
@@ -379,7 +482,17 @@ async function seedProgramStructure() {
   ]);
 
   const wuwe = await seedMaterialWithParams(temu3.id, "WUWE", "Win Urself Win Everything", 1, [
-    { subCode: "B.1_1", name: "Kemenangan Pribadi Sebelum Kemenangan Publik", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 1, clusterLabel: "Proaktivitas & Tanggung Jawab" },
+    {
+      subCode: "B.1_1",
+      name: "Kemenangan Pribadi Sebelum Kemenangan Publik",
+      type: ParameterType.B,
+      personalWeight: 0.2609,
+      skillWeight: null,
+      maxValue: 4,
+      inputMethod: InputMethod.MENTOR,
+      order: 1,
+      clusterLabel: "Proaktivitas & Tanggung Jawab",
+    },
     { subCode: "C.2", name: "Habit 1: Be Proactive", type: ParameterType.B, personalWeight: 0.0476, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 2, clusterLabel: "Proaktivitas & Tanggung Jawab" },
     { subCode: "B.1_2", name: "Habit 2: Begin with the End in Mind", type: ParameterType.B, personalWeight: 0.2609, skillWeight: null, maxValue: 4, inputMethod: InputMethod.MENTOR, order: 3, clusterLabel: "Visi & Tujuan" },
   ]);
@@ -428,6 +541,7 @@ async function seedProgramStructure() {
     inclUmum,
     temuSessions,
     inclenationParams: { kwya, bmb, wawasanTeknologi, wawasanFteic, marsElectics },
+    inclenationEventParams: { teraktif, terdisiplin, pelanggaran, throneBattle, terkompak },
     temuMaterialParams: {
       TEMU_1: { jad },
       TEMU_2: { htwf },
@@ -464,13 +578,7 @@ async function seedDemoDataForShowcaseUnits(
   const paramGroupsBySession: Array<{ sessionId: string; params: SeededParameter[] }> = [
     {
       sessionId: program.inclUmum.id,
-      params: [
-        ...program.inclenationParams.kwya,
-        ...program.inclenationParams.bmb,
-        ...program.inclenationParams.wawasanTeknologi,
-        ...program.inclenationParams.wawasanFteic,
-        ...program.inclenationParams.marsElectics,
-      ],
+      params: [...program.inclenationParams.kwya, ...program.inclenationParams.bmb, ...program.inclenationParams.wawasanTeknologi, ...program.inclenationParams.wawasanFteic, ...program.inclenationParams.marsElectics],
     },
     { sessionId: program.temuSessions.TEMU_1.umum.id, params: program.temuMaterialParams.TEMU_1.jad },
     { sessionId: program.temuSessions.TEMU_2.umum.id, params: program.temuMaterialParams.TEMU_2.htwf },
@@ -556,15 +664,8 @@ async function seedDemoDataForShowcaseUnits(
     }
   }
 
-  await Promise.all([
-    prisma.personalityProfile.createMany({ data: personalityRows }),
-    prisma.questionnaireStatus.createMany({ data: questionnaireRows }),
-    prisma.logbookEntry.createMany({ data: logbookRows }),
-  ]);
-  await Promise.all([
-    prisma.score.createMany({ data: scoreRows }),
-    prisma.attendance.createMany({ data: attendanceRows }),
-  ]);
+  await Promise.all([prisma.personalityProfile.createMany({ data: personalityRows }), prisma.questionnaireStatus.createMany({ data: questionnaireRows }), prisma.logbookEntry.createMany({ data: logbookRows })]);
+  await Promise.all([prisma.score.createMany({ data: scoreRows }), prisma.attendance.createMany({ data: attendanceRows })]);
 }
 
 async function main() {
@@ -617,7 +718,7 @@ async function main() {
   await seedDemoDataForShowcaseUnits(units, allStudentsByUnit, program, mentorsByUnitId);
 
   console.log("\nSeed complete.");
-  console.log(`Login demo: admin / ${DEMO_PASSWORD}, kr.r01 / ${DEMO_PASSWORD}, mentor.r01-u01 / ${DEMO_PASSWORD}`);
+  console.log(`Login demo: admin / ${DEMO_PASSWORD}, kr.r01 / ${DEMO_PASSWORD}, mentor.r01-u01 / ${DEMO_PASSWORD}, event1 / ${DEMO_PASSWORD}`);
 }
 
 main()

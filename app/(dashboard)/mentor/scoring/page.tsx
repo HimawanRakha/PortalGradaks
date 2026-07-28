@@ -1,10 +1,19 @@
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth/dal";
-import { requireMentorUnit, getActivitiesOverview, getUmumSession, getScoresForSession, getGroupsForMaterial } from "@/lib/data/mentor";
+import {
+  requireMentorUnit,
+  getActivitiesOverview,
+  getUmumSession,
+  getScoresForSession,
+  getGroupsForMaterial,
+  getUnitEventScores,
+  PER_STUDENT_INPUT_METHODS,
+} from "@/lib/data/mentor";
 import { InputMethod } from "@/app/generated/prisma/enums";
 import { ActivityPickerForm } from "@/components/scoring/activity-picker-form";
 import { StudentScoringTabs } from "@/components/scoring/student-scoring-tabs";
 import { GroupScoringSection } from "@/components/scoring/group-scoring-section";
+import { UnitEventScoringSection } from "@/components/scoring/unit-event-scoring-section";
 import { Card, CardContent } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "Scoring" };
@@ -48,15 +57,23 @@ export default async function MentorScoringPage({
       inputMethod: p.inputMethod,
     })),
   }));
+  // Allow-list per bucket (not "!== GROUP") so UNIT_MENTOR/UNIT_EVENT/REGION_EVENT
+  // parameters land in exactly one place — the Inclenation event scoreboard's
+  // UNIT_EVENT/REGION_EVENT ones never appear on this mentor page at all,
+  // they're entered by the Event role under /event instead.
   const individualMaterials = plainMaterials
-    .map((m) => ({ ...m, parameters: m.parameters.filter((p) => p.inputMethod !== InputMethod.GROUP) }))
+    .map((m) => ({ ...m, parameters: m.parameters.filter((p) => PER_STUDENT_INPUT_METHODS.includes(p.inputMethod)) }))
     .filter((m) => m.parameters.length > 0);
   const groupMaterials = plainMaterials
     .map((m) => ({ ...m, parameters: m.parameters.filter((p) => p.inputMethod === InputMethod.GROUP) }))
     .filter((m) => m.parameters.length > 0);
+  const unitEventMaterials = plainMaterials
+    .map((m) => ({ ...m, parameters: m.parameters.filter((p) => p.inputMethod === InputMethod.UNIT_MENTOR) }))
+    .filter((m) => m.parameters.length > 0);
 
   const individualParamIds = individualMaterials.flatMap((m) => m.parameters.map((p) => p.id));
   const scoresMap = await getScoresForSession(studentIds, individualParamIds, umumSession.id);
+  const unitEventValues = unitEventMaterials.length > 0 ? await getUnitEventScores(unit.id) : new Map<string, number | null>();
 
   return (
     <div className="space-y-6">
@@ -95,6 +112,14 @@ export default async function MentorScoringPage({
       {groupMaterials.map((material) => (
         <GroupMaterialSection key={material.id} unitId={unit.id} material={material} allStudents={students} />
       ))}
+
+      {unitEventMaterials.length > 0 ? (
+        <UnitEventScoringSection
+          unitId={unit.id}
+          materials={unitEventMaterials}
+          initialValues={Object.fromEntries(unitEventValues)}
+        />
+      ) : null}
     </div>
   );
 }

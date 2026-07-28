@@ -11,7 +11,7 @@ import { NAV_ITEMS, ROLE_LABEL } from "./nav-config";
 import { Role } from "@/app/generated/prisma/enums";
 
 function isActive(pathname: string, href: string) {
-  return href === "/mentor" || href === "/kepala-region" || href === "/admin" || href === "/damen"
+  return href === "/mentor" || href === "/kepala-region" || href === "/admin" || href === "/damen" || href === "/event"
     ? pathname === href
     : pathname === href || pathname.startsWith(`${href}/`);
 }

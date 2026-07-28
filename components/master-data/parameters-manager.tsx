@@ -2,10 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, Plus, Edit2, SlidersHorizontal, Info, Trash2 } from "lucide-react";
+import { Loader2, Plus, Edit2, SlidersHorizontal, Info, Trash2, HelpCircle, ChevronDown, ChevronUp, BookOpen } from "lucide-react";
 import { ParameterType, InputMethod } from "@/app/generated/prisma/enums";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,6 +24,7 @@ import {
   updateParameterAction,
   deleteParameterAction,
 } from "@/app/(dashboard)/admin/master-data/actions";
+import { getScoreCategoryMapping, STANDARD_SUB_CODE_REFERENCES } from "@/lib/scoring/mapping-utils";
 
 type ParameterData = {
   id: string;
@@ -66,6 +67,7 @@ export function ParametersManager({
 }) {
   const [parameters] = useState<ParameterData[]>(initialParameters);
   const [filterMaterialId, setFilterMaterialId] = useState<string>("ALL");
+  const [showGuide, setShowGuide] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -193,14 +195,27 @@ export function ParametersManager({
     ? parameters 
     : parameters.filter(p => p.material.id === filterMaterialId);
 
+  // Live mapping preview for current input state inside the dialog
+  const liveMapping = getScoreCategoryMapping(
+    subCode,
+    type,
+    personalWeight ? Number(personalWeight) : null,
+    skillWeight ? Number(skillWeight) : null
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-center">
         <div>
           <h3 className="text-lg font-medium">Pengelolaan Parameter Penilaian</h3>
-          <p className="text-xs text-muted-foreground">Detail instrumen penilaian, bobot raport, metode pengisian, dan rubrik perilaku.</p>
+          <p className="text-xs text-muted-foreground">Detail instrumen penilaian, kode sub, komponen raport, bobot hitung, dan rubrik perilaku.</p>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
+          <Button variant="outline" size="sm" onClick={() => setShowGuide(!showGuide)} className="gap-1 text-xs">
+            <BookOpen className="size-3.5 text-primary" />
+            Panduan Mapping Kode Sub
+            {showGuide ? <ChevronUp className="size-3.5 ml-0.5" /> : <ChevronDown className="size-3.5 ml-0.5" />}
+          </Button>
           <Label htmlFor="filter-material" className="text-xs font-medium text-muted-foreground">Filter Materi:</Label>
           <Select value={filterMaterialId} onValueChange={(val) => setFilterMaterialId(val || "ALL")}>
             <SelectTrigger id="filter-material" className="w-[180px] h-8 text-xs">
@@ -220,6 +235,49 @@ export function ParametersManager({
         </div>
       </div>
 
+      {/* Guide Panel: Kode Sub & Penilaian Mapping */}
+      {showGuide && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <HelpCircle className="size-4 text-primary" />
+              Panduan Acuan Kode Sub & Mapping Penilaian Raport
+            </CardTitle>
+            <CardDescription className="text-[11px]">
+              Setiap <strong>Kode Sub</strong> secara otomatis dibaca oleh Mesin Perhitungan Raport (<code>lib/scoring/calculate.ts</code>). Berikut adalah daftar kode sub standar beserta target komponen nilainya:
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 pt-0">
+            <div className="overflow-x-auto rounded-lg border bg-background">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-muted/60 border-b text-muted-foreground font-medium text-[11px]">
+                    <th className="p-2.5">Kode Sub</th>
+                    <th className="p-2.5">Grup Penilaian</th>
+                    <th className="p-2.5">Komponen / Sub-Nilai</th>
+                    <th className="p-2.5">Bobot Raport</th>
+                    <th className="p-2.5">Aturan Penamaan Kode</th>
+                    <th className="p-2.5">Deskripsi Singkat</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-[11px]">
+                  {STANDARD_SUB_CODE_REFERENCES.map((ref) => (
+                    <tr key={ref.code} className="hover:bg-muted/20">
+                      <td className="p-2.5 font-mono font-bold text-primary">{ref.code}</td>
+                      <td className="p-2.5 font-medium">{ref.targetGroup}</td>
+                      <td className="p-2.5 font-semibold text-foreground">{ref.category}</td>
+                      <td className="p-2.5 font-mono text-muted-foreground">{ref.weightInfo}</td>
+                      <td className="p-2.5 font-mono text-[10px] text-muted-foreground">{ref.matchingPattern}</td>
+                      <td className="p-2.5 text-muted-foreground">{ref.description}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardContent className="p-0">
           {filteredParams.length === 0 ? (
@@ -231,6 +289,7 @@ export function ParametersManager({
                   <tr className="bg-muted/40 border-b text-muted-foreground font-medium">
                     <th className="p-3">Materi</th>
                     <th className="p-3">Kode Sub</th>
+                    <th className="p-3">Masuk Penilaian (Raport/Event)</th>
                     <th className="p-3">Nama Parameter</th>
                     <th className="p-3">Rumpun Penilaian</th>
                     <th className="p-3">Tipe</th>
@@ -243,68 +302,85 @@ export function ParametersManager({
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {filteredParams.map((param) => (
-                    <tr key={param.id} className={`hover:bg-muted/30 ${!param.active ? "opacity-60" : ""}`}>
-                      <td className="p-3">
-                        <div className="flex flex-col">
-                          <span className="font-medium text-muted-foreground text-[10px] uppercase">
-                            {param.material.activity.name}
-                          </span>
-                          <span className="font-semibold text-foreground text-xs">
-                            {param.material.name}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="p-3 font-mono font-bold text-primary">{param.subCode}</td>
-                      <td className="p-3">
-                        <div className="flex flex-col">
-                          <span className="font-semibold text-foreground">{param.name}</span>
-                          {param.type === ParameterType.B && param.rubricAnchors && (
-                            <span className="text-[10px] text-amber-500 font-medium flex items-center gap-1 mt-0.5">
-                              <Info className="size-3" /> Rubrik perilaku terisi
+                  {filteredParams.map((param) => {
+                    const categoryMapping = getScoreCategoryMapping(
+                      param.subCode,
+                      param.type,
+                      param.personalWeight,
+                      param.skillWeight
+                    );
+
+                    return (
+                      <tr key={param.id} className={`hover:bg-muted/30 ${!param.active ? "opacity-60" : ""}`}>
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-muted-foreground text-[10px] uppercase">
+                              {param.material.activity.name}
                             </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3 text-muted-foreground">
-                        {param.clusterLabel ?? <span className="opacity-50">— (berdiri sendiri)</span>}
-                      </td>
-                      <td className="p-3">
-                        <span className="font-mono font-bold bg-muted px-1.5 py-0.5 rounded border">
-                          Tipe {param.type}
-                        </span>
-                      </td>
-                      <td className="p-3 font-medium text-muted-foreground">{param.inputMethod}</td>
-                      <td className="p-3 font-mono">{param.personalWeight !== null ? param.personalWeight : "-"}</td>
-                      <td className="p-3 font-mono">{param.skillWeight !== null ? param.skillWeight : "-"}</td>
-                      <td className="p-3 font-mono">{param.maxValue}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                          param.active ? "bg-green-500/10 text-green-500 border border-green-500/20" : "bg-red-500/10 text-red-500 border border-red-500/20"
-                        }`}>
-                          {param.active ? "Aktif" : "Non-aktif"}
-                        </span>
-                      </td>
-                      <td className="p-3 text-right">
-                        <div className="flex justify-end gap-1.5">
-                          <Button size="xs" variant="ghost" onClick={() => openModal(param)}>
-                            <Edit2 className="size-3" />
-                            Edit
-                          </Button>
-                          <Button
-                            size="xs"
-                            variant="ghost"
-                            className="text-destructive hover:bg-destructive/10"
-                            onClick={() => handleDelete(param.id, param.name)}
-                            disabled={pending}
+                            <span className="font-semibold text-foreground text-xs">
+                              {param.material.name}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-3 font-mono font-bold text-primary">{param.subCode}</td>
+                        <td className="p-3">
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] font-semibold whitespace-nowrap ${categoryMapping.badgeClass}`}
+                            title={categoryMapping.explanation}
                           >
-                            <Trash2 className="size-3" />
-                            Hapus
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                            {categoryMapping.fullCategoryLabel}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span className="font-semibold text-foreground">{param.name}</span>
+                            {param.type === ParameterType.B && param.rubricAnchors && (
+                              <span className="text-[10px] text-amber-500 font-medium flex items-center gap-1 mt-0.5">
+                                <Info className="size-3" /> Rubrik perilaku terisi
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 text-muted-foreground">
+                          {param.clusterLabel ?? <span className="opacity-50">— (berdiri sendiri)</span>}
+                        </td>
+                        <td className="p-3">
+                          <span className="font-mono font-bold bg-muted px-1.5 py-0.5 rounded border">
+                            Tipe {param.type}
+                          </span>
+                        </td>
+                        <td className="p-3 font-medium text-muted-foreground">{param.inputMethod}</td>
+                        <td className="p-3 font-mono">{param.personalWeight !== null ? param.personalWeight : "-"}</td>
+                        <td className="p-3 font-mono">{param.skillWeight !== null ? param.skillWeight : "-"}</td>
+                        <td className="p-3 font-mono">{param.maxValue}</td>
+                        <td className="p-3">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            param.active ? "bg-green-500/10 text-green-500 border border-green-500/20" : "bg-red-500/10 text-red-500 border border-red-500/20"
+                          }`}>
+                            {param.active ? "Aktif" : "Non-aktif"}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex justify-end gap-1.5">
+                            <Button size="xs" variant="ghost" onClick={() => openModal(param)}>
+                              <Edit2 className="size-3" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              className="text-destructive hover:bg-destructive/10"
+                              onClick={() => handleDelete(param.id, param.name)}
+                              disabled={pending}
+                            >
+                              <Trash2 className="size-3" />
+                              Hapus
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -336,19 +412,34 @@ export function ParametersManager({
                 </Select>
               </div>
               <div className="grid gap-1">
-                <Label htmlFor="param-subcode">Kode Sub (misal: B1, B2, C1)</Label>
-                <Input id="param-subcode" placeholder="B1" value={subCode} onChange={(e) => setSubCode(e.target.value)} className="h-8" />
+                <Label htmlFor="param-subcode">Kode Sub (misal: A.2_1, B.1_2, M_1)</Label>
+                <Input id="param-subcode" placeholder="B.1_1" value={subCode} onChange={(e) => setSubCode(e.target.value)} className="h-8 font-mono" />
               </div>
             </div>
 
-            <div className="rounded-lg border bg-muted/30 p-2.5 text-[10px] text-muted-foreground space-y-1">
-              <p>
-                <span className="font-semibold text-foreground">Nilai Personal</span> (A.1/A.2/B.1/B.2/C.1/C.2): kode cukup <em>mengandung</em> salah satunya — boleh ada tambahan, mis. <code className="bg-background px-1 rounded border">A.2_1</code>, <code className="bg-background px-1 rounded border">A.2_2</code> untuk beberapa parameter di sub-nilai yang sama.
-              </p>
-              <p>
-                <span className="font-semibold text-foreground">Nilai Keahlian</span> (M/K/MB/KW): bagian sebelum tanda <code className="bg-background px-1 rounded border">_</code> atau <code className="bg-background px-1 rounded border">.</code> pertama harus <em>persis sama</em> — mis. <code className="bg-background px-1 rounded border">M_1</code>, <code className="bg-background px-1 rounded border">M_2</code> (bukan <code className="bg-background px-1 rounded border">M1</code> tanpa pemisah, dan bukan <code className="bg-background px-1 rounded border">Manajerial_1</code>).
-              </p>
-            </div>
+            {/* Live Indicator Preview of Target Score Category */}
+            {subCode ? (
+              <div className="rounded-lg border p-2.5 bg-muted/40 text-[11px] space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-foreground flex items-center gap-1">
+                    <Info className="size-3.5 text-primary" /> Target Penilaian Raport / Event:
+                  </span>
+                  <span className={`px-2 py-0.5 rounded border text-[10px] font-bold ${liveMapping.badgeClass}`}>
+                    {liveMapping.fullCategoryLabel}
+                  </span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">{liveMapping.explanation}</p>
+              </div>
+            ) : (
+              <div className="rounded-lg border bg-muted/30 p-2.5 text-[10px] text-muted-foreground space-y-1">
+                <p>
+                  <span className="font-semibold text-foreground">Nilai Personal</span> (A.1/A.2/B.1/B.2/C.1/C.2): kode cukup <em>mengandung</em> salah satunya — mis. <code className="bg-background px-1 rounded border">A.2_1</code>, <code className="bg-background px-1 rounded border">A.2_2</code>.
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Nilai Keahlian</span> (M/K/MB/KW): bagian sebelum tanda <code className="bg-background px-1 rounded border">_</code> atau <code className="bg-background px-1 rounded border">.</code> harus persis — mis. <code className="bg-background px-1 rounded border">M_1</code>, <code className="bg-background px-1 rounded border">M_2</code>.
+                </p>
+              </div>
+            )}
 
             <div className="grid gap-1">
               <Label htmlFor="param-name">Nama Parameter Penilaian</Label>
@@ -371,7 +462,7 @@ export function ParametersManager({
 
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1">
-                <Label htmlFor="param-type">Tipe Parameter (A-E)</Label>
+                <Label htmlFor="param-type">Tipe Parameter (A-F)</Label>
                 <Select value={type} onValueChange={(val) => {
                   if (val) {
                     setType(val as ParameterType);
@@ -387,6 +478,7 @@ export function ParametersManager({
                     <SelectItem value={ParameterType.C}>Tipe C (Rubrik Penugasan Butir)</SelectItem>
                     <SelectItem value={ParameterType.D}>Tipe D (Post-test / Pengujian)</SelectItem>
                     <SelectItem value={ParameterType.E}>Tipe E (Data Eksternal & Verifikasi)</SelectItem>
+                    <SelectItem value={ParameterType.F}>Tipe F (Kompetisi Event Inclenation)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -400,6 +492,9 @@ export function ParametersManager({
                     <SelectItem value={InputMethod.MENTOR}>Input Manual Mentor</SelectItem>
                     <SelectItem value={InputMethod.IMPORT}>Impor CSV / Excel</SelectItem>
                     <SelectItem value={InputMethod.GROUP}>Kelompok (Tugas kelompok)</SelectItem>
+                    <SelectItem value={InputMethod.UNIT_MENTOR}>Event: Per Unit oleh Mentor</SelectItem>
+                    <SelectItem value={InputMethod.UNIT_EVENT}>Event: Per Unit oleh Panitia Event</SelectItem>
+                    <SelectItem value={InputMethod.REGION_EVENT}>Event: Per Region oleh Panitia Event</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

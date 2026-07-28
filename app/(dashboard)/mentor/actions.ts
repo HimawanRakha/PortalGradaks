@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, ForbiddenError } from "@/lib/auth/dal";
-import { upsertScore, upsertAttendance, upsertGroupScore } from "@/lib/scoring/upsert";
+import { upsertScore, upsertAttendance, upsertGroupScore, upsertUnitEventScore } from "@/lib/scoring/upsert";
 import { Role, AttendanceStatus, SessionMode, LogbookStatus } from "@/app/generated/prisma/enums";
 
 async function requireMentor() {
@@ -115,6 +115,23 @@ export async function saveGroupScoresAction(groupId: string, rawValues: Record<s
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan nilai kelompok." };
+  }
+}
+
+export async function saveUnitEventScoresAction(unitId: string, rawValues: Record<string, number | null>): Promise<ActionResult> {
+  try {
+    const user = await requireMentor();
+    if (unitId !== user.unitId) throw new ForbiddenError("Unit ini bukan unit Anda.");
+    const values = scoreValuesSchema.parse(rawValues);
+
+    for (const [parameterId, value] of Object.entries(values)) {
+      await upsertUnitEventScore({ unitId, parameterId, value, actorUserId: user.id });
+    }
+
+    revalidatePath("/mentor/scoring");
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan nilai event unit." };
   }
 }
 

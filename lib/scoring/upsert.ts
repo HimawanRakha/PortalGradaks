@@ -136,3 +136,101 @@ export async function upsertGroupScore(params: {
 
   return groupScore;
 }
+
+/**
+ * Write path for the Inclenation event scoreboard's unit-scoped values
+ * (Teraktif/Terdisiplin/Pelanggaran entered by Mentor, Throne Battle entered
+ * by Event) — see lib/scoring/event-calculate.ts for how these are read.
+ * Deliberately its own table (not GroupScore): a unit here is the whole
+ * mentoring cohort, not a mentor-curated sub-team.
+ */
+export async function upsertUnitEventScore(params: {
+  unitId: string;
+  parameterId: string;
+  value: number | null;
+  actorUserId: string;
+}) {
+  const { unitId, parameterId, value, actorUserId } = params;
+  const where = { unitId_parameterId: { unitId, parameterId } };
+
+  const existing = await prisma.unitEventScore.findUnique({ where });
+
+  const unitEventScore = await prisma.unitEventScore.upsert({
+    where,
+    update: { value, enteredByUserId: actorUserId },
+    create: { unitId, parameterId, value, enteredByUserId: actorUserId },
+  });
+
+  if (!existing) {
+    await prisma.auditLog.create({
+      data: {
+        entityType: "UnitEventScore",
+        entityId: unitEventScore.id,
+        action: "CREATE",
+        field: "value",
+        newValue: toJson(value),
+        changedByUserId: actorUserId,
+      },
+    });
+  } else if (existing.value !== value) {
+    await prisma.auditLog.create({
+      data: {
+        entityType: "UnitEventScore",
+        entityId: unitEventScore.id,
+        action: "UPDATE",
+        field: "value",
+        oldValue: toJson(existing.value),
+        newValue: toJson(value),
+        changedByUserId: actorUserId,
+      },
+    });
+  }
+
+  return unitEventScore;
+}
+
+/** Region-scoped counterpart of upsertUnitEventScore — Terkompak's 5 criteria, Event-entered. */
+export async function upsertRegionEventScore(params: {
+  regionId: string;
+  parameterId: string;
+  value: number | null;
+  actorUserId: string;
+}) {
+  const { regionId, parameterId, value, actorUserId } = params;
+  const where = { regionId_parameterId: { regionId, parameterId } };
+
+  const existing = await prisma.regionEventScore.findUnique({ where });
+
+  const regionEventScore = await prisma.regionEventScore.upsert({
+    where,
+    update: { value, enteredByUserId: actorUserId },
+    create: { regionId, parameterId, value, enteredByUserId: actorUserId },
+  });
+
+  if (!existing) {
+    await prisma.auditLog.create({
+      data: {
+        entityType: "RegionEventScore",
+        entityId: regionEventScore.id,
+        action: "CREATE",
+        field: "value",
+        newValue: toJson(value),
+        changedByUserId: actorUserId,
+      },
+    });
+  } else if (existing.value !== value) {
+    await prisma.auditLog.create({
+      data: {
+        entityType: "RegionEventScore",
+        entityId: regionEventScore.id,
+        action: "UPDATE",
+        field: "value",
+        oldValue: toJson(existing.value),
+        newValue: toJson(value),
+        changedByUserId: actorUserId,
+      },
+    });
+  }
+
+  return regionEventScore;
+}

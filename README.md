@@ -33,6 +33,7 @@ Untuk reseed dari kosong (mis. setelah ubah schema): `npx prisma migrate reset` 
 | Kepala Region (contoh) | `kr.r01` |
 | Mentor (contoh) | `mentor.r01-u01` |
 | Damen (demo) | `damen1` |
+| Event (panitia Inclenation) | `event1` |
 
 ## Apa yang masih placeholder (dan kenapa)
 

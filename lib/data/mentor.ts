@@ -3,6 +3,17 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/auth/dal";
 import type { SessionUser } from "@/lib/auth/dal";
+import { InputMethod } from "@/app/generated/prisma/enums";
+
+/**
+ * The only InputMethods that produce a per-student Score row. GROUP produces
+ * a GroupScore instead (one value per Group, not per student); UNIT_MENTOR/
+ * UNIT_EVENT/REGION_EVENT belong to the Inclenation event scoreboard
+ * (UnitEventScore/RegionEventScore) and never touch Score at all — see
+ * lib/scoring/event-calculate.ts. An allow-list (rather than "not GROUP") so
+ * a future InputMethod defaults to excluded here unless explicitly added.
+ */
+export const PER_STUDENT_INPUT_METHODS: InputMethod[] = [InputMethod.MENTOR, InputMethod.IMPORT];
 
 /**
  * The session JWT freezes unitId at sign-in time and never re-validates it
@@ -20,7 +31,7 @@ export async function requireMentorUnit(user: SessionUser) {
     where: { id: user.unitId },
     include: { region: true, students: { orderBy: { name: "asc" } } },
   });
-  if (!unit) redirect("/login");
+  if (!unit) redirect("/api/auth/force-logout");
   return unit;
 }
 
@@ -49,7 +60,9 @@ export async function getUnitProgress(unitId: string) {
 
   const results = [];
   for (const activity of activities) {
-    const scorableParams = activity.materials.flatMap((m) => m.parameters).filter((p) => p.inputMethod !== "GROUP");
+    const scorableParams = activity.materials
+      .flatMap((m) => m.parameters)
+      .filter((p) => PER_STUDENT_INPUT_METHODS.includes(p.inputMethod));
     const total = scorableParams.length * studentIds.length;
     if (total === 0) {
       results.push({ activity, done: 0, total: 0 });
@@ -126,4 +139,10 @@ export async function getGroupsForMaterial(unitId: string, materialId: string) {
     include: { members: { include: { student: true } }, groupScores: true },
     orderBy: { name: "asc" },
   });
+}
+
+/** Existing UNIT_MENTOR values (Teraktif/Terdisiplin/Pelanggaran) for one unit, keyed by parameterId. */
+export async function getUnitEventScores(unitId: string): Promise<Map<string, number | null>> {
+  const rows = await prisma.unitEventScore.findMany({ where: { unitId } });
+  return new Map(rows.map((r) => [r.parameterId, r.value]));
 }

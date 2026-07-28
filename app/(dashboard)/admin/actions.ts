@@ -29,7 +29,7 @@ type RowOutcome = {
 };
 
 const ATTENDANCE_STATUSES = new Set<string>([AttendanceStatus.HADIR, AttendanceStatus.IZIN, AttendanceStatus.ALPA]);
-const VALID_ROLES = new Set<string>([Role.ADMIN, Role.KEPALA_REGION, Role.MENTOR, Role.DAMEN]);
+const VALID_ROLES = new Set<string>([Role.ADMIN, Role.KEPALA_REGION, Role.MENTOR, Role.DAMEN, Role.EVENT]);
 
 function truthy(value: string | undefined): boolean {
   if (!value) return false;

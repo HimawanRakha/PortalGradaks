@@ -136,6 +136,7 @@ export function AccountsManager({
       case Role.KEPALA_REGION: return "bg-purple-500/10 text-purple-500 border-purple-500/20";
       case Role.MENTOR: return "bg-blue-500/10 text-blue-500 border-blue-500/20";
       case Role.DAMEN: return "bg-amber-500/10 text-amber-500 border-amber-500/20";
+      case Role.EVENT: return "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
       default: return "bg-gray-500/10 text-gray-500";
     }
   };
@@ -159,6 +160,7 @@ export function AccountsManager({
               <SelectItem value={Role.KEPALA_REGION}>Kepala Region</SelectItem>
               <SelectItem value={Role.MENTOR}>Mentor</SelectItem>
               <SelectItem value={Role.DAMEN}>Damen</SelectItem>
+              <SelectItem value={Role.EVENT}>Panitia Event</SelectItem>
             </SelectContent>
           </Select>
           <Button onClick={() => openModal()} size="sm">
@@ -256,6 +258,7 @@ export function AccountsManager({
                   <SelectItem value={Role.KEPALA_REGION}>Kepala Region</SelectItem>
                   <SelectItem value={Role.MENTOR}>Mentor</SelectItem>
                   <SelectItem value={Role.DAMEN}>Damen</SelectItem>
+                  <SelectItem value={Role.EVENT}>Panitia Event</SelectItem>
                 </SelectContent>
               </Select>
             </div>

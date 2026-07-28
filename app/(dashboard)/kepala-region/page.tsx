@@ -43,7 +43,7 @@ export default async function RegionHomePage({
   // Session's regionId is frozen at sign-in — if the region was deleted and
   // recreated since (e.g. a reseed), this is a stale session, not a real
   // permission error. Send back to sign in fresh instead of crashing.
-  if (!region) redirect("/login");
+  if (!region) redirect("/api/auth/force-logout");
 
   const selectedActivity = activities.find((act) => act.code === activityParam) || activities[0];
   const activityCode = selectedActivity?.code;

@@ -28,13 +28,49 @@ export class ForbiddenError extends Error {
  * Server Action / page / route handler in (dashboard) should call this
  * (or a helper built on it) before touching data, never rely on
  * proxy.ts's optimistic redirect alone.
+ *
+ * Also re-validates against the DB on every call (deduped per-request by
+ * `cache()`, so still one extra query, not one per component). The JWT
+ * caches role/regionId/unitId from sign-in time and next-auth never
+ * refreshes them on its own — so a deleted/deactivated account, or an
+ * admin reassigning someone's role/region/unit, would otherwise stay stale
+ * in the browser's cookie until it happened to expire. This is deliberately
+ * NOT done in proxy.ts: Next.js 16 documents proxy as "not intended for
+ * slow data fetching" and this project's own proxy.ts comment already
+ * calls its check "optimistic only" — this function is the real check.
+ *
+ * On failure this redirects to /api/auth/force-logout, NOT plain /login —
+ * a bare `redirect("/login")` here loops forever: proxy.ts's isLoggedIn
+ * check only decodes the JWT (same "stay fast" reasoning as above) and
+ * would keep seeing a "logged in" user, bouncing /login straight back to
+ * `/`, which re-runs this same failing check. Only a route handler can
+ * actually clear the cookie (Server Components can't), which is what
+ * breaks the loop.
  */
 export const verifySession = cache(async (): Promise<{ user: SessionUser }> => {
   const session = await auth();
   if (!session?.user) {
     redirect("/login");
   }
-  return { user: session.user as SessionUser };
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { nrp: true, name: true, role: true, regionId: true, unitId: true, active: true },
+  });
+  if (!dbUser || !dbUser.active) {
+    redirect("/api/auth/force-logout");
+  }
+
+  return {
+    user: {
+      id: session.user.id,
+      nrp: dbUser.nrp,
+      name: dbUser.name,
+      role: dbUser.role,
+      regionId: dbUser.regionId,
+      unitId: dbUser.unitId,
+    },
+  };
 });
 
 export async function getCurrentUser(): Promise<SessionUser> {
@@ -53,6 +89,8 @@ export async function assertRole(...roles: Role[]): Promise<SessionUser> {
 export const assertCanManageMasterData = () => assertRole(Role.ADMIN);
 export const assertCanImport = () => assertRole(Role.ADMIN);
 export const assertCanFinalize = () => assertRole(Role.ADMIN);
+/** Terkompak (per region) + Winner Throne Battle (per unit) entry for the Inclenation event scoreboard. */
+export const assertCanScoreInclenationEvent = () => assertRole(Role.ADMIN, Role.EVENT);
 
 /**
  * Mentor scope = own unit only; Kepala Region scope = own region's units;
@@ -61,7 +99,7 @@ export const assertCanFinalize = () => assertRole(Role.ADMIN);
  */
 export async function assertCanViewUnit(unitId: string, user?: SessionUser): Promise<void> {
   const currentUser = user ?? (await getCurrentUser());
-  if (currentUser.role === Role.ADMIN) return;
+  if (currentUser.role === Role.ADMIN || currentUser.role === Role.EVENT) return;
 
   if (currentUser.role === Role.KEPALA_REGION) {
     if (!currentUser.regionId) throw new ForbiddenError();
@@ -91,7 +129,7 @@ export async function assertCanViewStudent(studentId: string, user?: SessionUser
 
 export async function assertCanViewRegion(regionId: string, user?: SessionUser): Promise<void> {
   const currentUser = user ?? (await getCurrentUser());
-  if (currentUser.role === Role.ADMIN) return;
+  if (currentUser.role === Role.ADMIN || currentUser.role === Role.EVENT) return;
   if (currentUser.role === Role.KEPALA_REGION && currentUser.regionId === regionId) return;
   throw new ForbiddenError();
 }
@@ -105,7 +143,10 @@ export async function assertCanViewRegion(regionId: string, user?: SessionUser):
 export async function getScopedUnitIds(user?: SessionUser): Promise<string[] | "ALL"> {
   const currentUser = user ?? (await getCurrentUser());
 
-  if (currentUser.role === Role.ADMIN) return "ALL";
+  // EVENT judges Terkompak/Throne Battle across every region, same reach as
+  // Admin for read purposes — it just can't reach Admin-only actions
+  // (assertCanManageMasterData/assertCanImport/assertCanFinalize stay ADMIN-only).
+  if (currentUser.role === Role.ADMIN || currentUser.role === Role.EVENT) return "ALL";
 
   if (currentUser.role === Role.KEPALA_REGION) {
     if (!currentUser.regionId) return [];
