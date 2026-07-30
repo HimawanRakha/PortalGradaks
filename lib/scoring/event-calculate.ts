@@ -96,6 +96,7 @@ export type UnitEventBoardRow = {
   materialScoreCount: number;
   terbaikScore: number;
   terdisiplinScore: number;
+  terkompakScore: number;
 };
 
 export type RegionEventBoardRow = {
@@ -200,6 +201,7 @@ export async function getUnitLeaderboard(): Promise<UnitEventBoardRow[]> {
         (materialAvg ?? 0) * MATERIAL_AVG_WEIGHT;
 
       const terdisiplinScore = terdisiplinRaw - pelanggaranTotalValue;
+      const terkompakScore = teraktif + regionTerkompakScore;
 
       return {
         unitId: unit.id,
@@ -218,6 +220,7 @@ export async function getUnitLeaderboard(): Promise<UnitEventBoardRow[]> {
         materialScoreCount: materialAgg?.count ?? 0,
         terbaikScore: Number(terbaikScore.toFixed(3)),
         terdisiplinScore,
+        terkompakScore,
       };
     })
     .sort((a, b) => b.terbaikScore - a.terbaikScore);

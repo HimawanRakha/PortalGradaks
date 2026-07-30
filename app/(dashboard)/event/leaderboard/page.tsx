@@ -75,6 +75,84 @@ function UnitTable({ rows, primaryScoreLabel, primaryScore }: { rows: UnitEventB
   );
 }
 
+function TerdisiplinTable({ rows }: { rows: UnitEventBoardRow[] }) {
+  if (rows.length === 0) {
+    return <p className="py-6 text-center text-sm text-muted-foreground">Belum ada unit untuk ditampilkan.</p>;
+  }
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full text-left text-xs border-collapse">
+        <thead>
+          <tr className="bg-muted/40 border-b text-muted-foreground font-medium">
+            <th className="p-3">#</th>
+            <th className="p-3">Unit</th>
+            <th className="p-3">Region</th>
+            <th className="p-3 text-right">Terdisiplin</th>
+            <th className="p-3 text-right">Pelanggaran</th>
+            <th className="p-3 text-right">Total Terdisiplin</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {rows.map((row, i) => (
+            <tr key={row.unitId} className="hover:bg-muted/30">
+              <td className="p-3">
+                <RankBadge rank={i + 1} />
+              </td>
+              <td className="p-3 font-semibold">
+                <span className="font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded text-[10px] mr-1.5 border">{row.unitCode}</span>
+                {row.unitName}
+              </td>
+              <td className="p-3 text-muted-foreground">{row.regionName}</td>
+              <td className="p-3 text-right tabular-nums">{row.terdisiplinRaw}</td>
+              <td className="p-3 text-right tabular-nums text-destructive">{row.pelanggaranTotal > 0 ? `-${row.pelanggaranTotal}` : 0}</td>
+              <td className="p-3 text-right text-sm font-bold tabular-nums">{row.terdisiplinScore}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TerkompakUnitTable({ rows }: { rows: UnitEventBoardRow[] }) {
+  if (rows.length === 0) {
+    return <p className="py-6 text-center text-sm text-muted-foreground">Belum ada unit untuk ditampilkan.</p>;
+  }
+  return (
+    <div className="overflow-x-auto rounded-lg border">
+      <table className="w-full text-left text-xs border-collapse">
+        <thead>
+          <tr className="bg-muted/40 border-b text-muted-foreground font-medium">
+            <th className="p-3">#</th>
+            <th className="p-3">Unit</th>
+            <th className="p-3">Region</th>
+            <th className="p-3 text-right">Nilai Teraktif</th>
+            <th className="p-3 text-right">Terkompak Region</th>
+            <th className="p-3 text-right">Total Terkompak</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {rows.map((row, i) => (
+            <tr key={row.unitId} className="hover:bg-muted/30">
+              <td className="p-3">
+                <RankBadge rank={i + 1} />
+              </td>
+              <td className="p-3 font-semibold">
+                <span className="font-mono bg-muted text-muted-foreground px-1.5 py-0.5 rounded text-[10px] mr-1.5 border">{row.unitCode}</span>
+                {row.unitName}
+              </td>
+              <td className="p-3 text-muted-foreground">{row.regionName}</td>
+              <td className="p-3 text-right tabular-nums">{row.teraktif}</td>
+              <td className="p-3 text-right tabular-nums">{row.regionTerkompakScore}</td>
+              <td className="p-3 text-right text-sm font-bold tabular-nums">{row.terkompakScore}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function RegionTable({ rows }: { rows: RegionEventBoardRow[] }) {
   if (rows.length === 0) {
     return <p className="py-6 text-center text-sm text-muted-foreground">Belum ada region untuk ditampilkan.</p>;
@@ -128,13 +206,14 @@ export default async function EventLeaderboardPage() {
   const regions = isRegionScoped ? allRegions.filter((r) => r.regionId === user.regionId) : allRegions;
 
   const terdisiplinSorted = [...units].sort((a, b) => b.terdisiplinScore - a.terdisiplinScore);
+  const terkompakSorted = [...units].sort((a, b) => b.terkompakScore - a.terkompakScore);
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold">Leaderboard Event Inclenation</h2>
         <p className="text-sm text-muted-foreground">
-          {isRegionScoped ? "Ranking unit di region Anda untuk Terbaik & Terdisiplin, dan nilai Terkompak region Anda." : "Ranking lintas semua region — bukan pemenang otomatis, panitia yang memutuskan juara dari ranking ini."}
+          {isRegionScoped ? "Ranking unit di region Anda untuk Terbaik, Terdisiplin & Terkompak." : "Ranking lintas semua region — bukan pemenang otomatis, panitia yang memutuskan juara dari ranking ini."}
         </p>
       </div>
 
@@ -148,7 +227,7 @@ export default async function EventLeaderboardPage() {
         <TabsContent value="terbaik" className="mt-3 space-y-3">
           <FormulaAlert title="Cara menghitung Total Terbaik">
             Total Terbaik = (Teraktif × 2) + Terdisiplin (jumlah 6 kriteria Hari 1 &amp; Hari 2) + Bonus Throne Battle (+35 jika unit ini menang) − Pelanggaran (Telat dikali 2 jika &gt;5 orang, Pelanggaran Lainnya tidak ikut dihitung
-            otomatis) + Nilai Terkompak dari region unit ini + Rata-rata nilai materi Inclenation (KWYA, BMB, Wawasan Teknologi, Wawasan FTEIC) seluruh maba di unit tsb. Kolom di tabel di bawah persis komponen-komponen ini — total di kolom
+            otomatis) + Nilai Terkompak dari region unit ini + Rata-rata nilai materi Inclenation (KWYA, BMB, Wawasan Teknologi, Wawasan FTEIC) seluruh maba di unit tsb. Kolom di bawah persis komponen-komponen ini — total di kolom
             paling kanan adalah jumlahnya.
           </FormulaAlert>
           <Card>
@@ -164,21 +243,28 @@ export default async function EventLeaderboardPage() {
           </FormulaAlert>
           <Card>
             <CardContent className="p-0">
-              <UnitTable rows={terdisiplinSorted} primaryScoreLabel="Total Terdisiplin" primaryScore={(r) => r.terdisiplinScore} />
+              <TerdisiplinTable rows={terdisiplinSorted} />
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="terkompak" className="mt-3 space-y-3">
-          <FormulaAlert title="Cara menghitung Nilai Terkompak">
-            Nilai Terkompak dihitung per REGION (bukan per unit), dari 5 kriteria yang diisi Panitia Event (Kerjasama Tim, Semua Anggota Hafal Jargon, Kompak Saat Jargon, Jargon Bagus, Warna Dresscode Mirip — masing-masing bernilai 1 jika
-            terpenuhi). &ldquo;Nilai Mentah&rdquo; = jumlah kriteria yang terpenuhi (0–5). Jika SEMUA kriteria terpenuhi, nilai mentah tsb dikalikan 2 untuk jadi &ldquo;Nilai Terkompak&rdquo; — jika belum semua terpenuhi, Nilai Terkompak =
-            Nilai Mentah apa adanya.
+        <TabsContent value="terkompak" className="mt-3 space-y-4">
+          <FormulaAlert title="Cara menghitung Total Terkompak Unit">
+            Total Terkompak = Nilai Teraktif (Unit) + Nilai Terkompak Region (yang dihitung per region dari 5 kriteria Panitia Event: Kerjasama Tim, Semua Anggota Hafal Jargon, Kompak Saat Jargon, Jargon Bagus, Warna Dresscode Mirip — jika semua 5 kriteria terpenuhi, nilai mentah dikali 2).
           </FormulaAlert>
           <Card>
             <CardContent className="p-0">
-              <RegionTable rows={regions} />
+              <TerkompakUnitTable rows={terkompakSorted} />
             </CardContent>
           </Card>
+
+          <div className="pt-2 space-y-2">
+            <h3 className="text-sm font-semibold">Rekap Nilai Terkompak per Region</h3>
+            <Card>
+              <CardContent className="p-0">
+                <RegionTable rows={regions} />
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

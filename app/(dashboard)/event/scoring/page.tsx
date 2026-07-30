@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { assertCanScoreInclenationEvent } from "@/lib/auth/dal";
 import { prisma } from "@/lib/prisma";
-import { RegionEventCard } from "@/components/event/region-event-card";
+import { RegionScoringTabs } from "@/components/event/region-scoring-tabs";
 
 export const metadata: Metadata = { title: "Penilaian Event - Terkompak & Throne Battle" };
 
@@ -49,24 +49,18 @@ export default async function EventScoringPage() {
       <div>
         <h2 className="text-xl font-semibold">Penilaian Event Inclenation</h2>
         <p className="text-sm text-muted-foreground">
-          Isi nilai Terkompak per region dan tandai unit pemenang Winner Throne Battle. Kategori Teraktif/Terdisiplin/
-          Pelanggaran diisi masing-masing mentor di halaman Scoring unit mereka.
+          Pilih region melalui tab dropdown untuk mengisi nilai Terkompak dan pemenang Winner Throne Battle. Kategori
+          Teraktif/Terdisiplin/Pelanggaran diisi masing-masing mentor di halaman Scoring unit mereka.
         </p>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {regions.map((region) => (
-          <RegionEventCard
-            key={region.id}
-            region={{ id: region.id, code: region.code, name: region.name }}
-            units={region.units}
-            terkompakParams={terkompakParams}
-            throneParam={throneParam}
-            initialTerkompakValues={regionScoreMap.get(region.id) ?? {}}
-            initialThroneValues={Object.fromEntries(region.units.map((u) => [u.id, throneValueByUnit.get(u.id) ?? null]))}
-          />
-        ))}
-      </div>
+      <RegionScoringTabs
+        regions={regions}
+        terkompakParams={terkompakParams}
+        throneParam={throneParam}
+        regionScoreMap={regionScoreMap}
+        throneValueByUnit={throneValueByUnit}
+      />
     </div>
   );
 }
