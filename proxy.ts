@@ -8,8 +8,12 @@ import { auth } from "@/auth";
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const isLoginPage = req.nextUrl.pathname === "/login";
+  // Public NRP-only raport lookup for maba — no session involved, see
+  // app/cek-raport/page.tsx. Must stay out of the isLoggedIn redirect below,
+  // same as /login.
+  const isPublicPage = isLoginPage || req.nextUrl.pathname.startsWith("/cek-raport");
 
-  if (!isLoggedIn && !isLoginPage) {
+  if (!isLoggedIn && !isPublicPage) {
     const loginUrl = new URL("/login", req.nextUrl);
     loginUrl.searchParams.set("callbackUrl", req.nextUrl.pathname);
     return NextResponse.redirect(loginUrl);
