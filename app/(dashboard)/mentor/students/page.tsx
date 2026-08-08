@@ -47,8 +47,17 @@ export default async function MentorStudentsPage() {
                   <p className="text-xs text-muted-foreground">{student.nrp}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1.5">
-                  {student.personalityProfile ? (
+                  {student.personalityProfile?.mbtiType ? (
                     <Badge variant="secondary">{student.personalityProfile.mbtiType}</Badge>
+                  ) : null}
+                  {student.personalityProfile?.temperament ? (
+                    student.personalityProfile.temperament.startsWith("http") ? (
+                      <Badge variant="outline" className="text-xs">
+                        Bukti Tes 📷
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary">{student.personalityProfile.temperament}</Badge>
+                    )
                   ) : null}
                   <Badge variant={k1 ? "default" : "secondary"}>K1</Badge>
                   <Badge variant={k2 ? "default" : "secondary"}>K2</Badge>

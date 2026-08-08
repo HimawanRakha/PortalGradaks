@@ -4,6 +4,32 @@ import { ScoreBreakdownList } from "@/components/scoring/score-breakdown-list";
 import { QuestionnaireCode, LogbookStatus } from "@/app/generated/prisma/enums";
 import type { Prisma } from "@/app/generated/prisma/client";
 import type { ComputedScores } from "@/lib/scoring/calculate";
+import { ExternalLink, ImageIcon } from "lucide-react";
+
+/**
+ * Parses a string to check if it's a URL (e.g. Google Drive link) and extracts
+ * a direct image thumbnail URL if applicable.
+ */
+function parseDriveImage(urlOrText?: string | null): { isUrl: boolean; imageUrl?: string; originalUrl?: string } {
+  if (!urlOrText || typeof urlOrText !== "string") return { isUrl: false };
+  const trimmed = urlOrText.trim();
+  if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) {
+    return { isUrl: false };
+  }
+
+  // Google Drive File ID extraction
+  const fileIdMatch = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (fileIdMatch && fileIdMatch[1]) {
+    const fileId = fileIdMatch[1];
+    return {
+      isUrl: true,
+      imageUrl: `https://lh3.googleusercontent.com/d/${fileId}`,
+      originalUrl: trimmed,
+    };
+  }
+
+  return { isUrl: true, imageUrl: trimmed, originalUrl: trimmed };
+}
 
 /**
  * Shared shape both the mentor's per-student page and the public /cek-raport
@@ -74,9 +100,55 @@ export function StudentRaportView({ student, computed }: { student: StudentForRa
               Profil deskriptif pendamping — tidak dihitung sebagai komponen berbobot pada nilai akhir.
             </p>
             {student.personalityProfile ? (
-              <div className="flex gap-2">
-                <Badge variant="secondary">{student.personalityProfile.mbtiType}</Badge>
-                <Badge variant="secondary">{student.personalityProfile.temperament}</Badge>
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  {student.personalityProfile.mbtiType ? (
+                    <Badge variant="secondary" className="font-semibold">
+                      MBTI: {student.personalityProfile.mbtiType}
+                    </Badge>
+                  ) : null}
+                  {student.personalityProfile.temperament &&
+                  !parseDriveImage(student.personalityProfile.temperament).isUrl ? (
+                    <Badge variant="secondary">{student.personalityProfile.temperament}</Badge>
+                  ) : null}
+                </div>
+
+                {student.personalityProfile.temperament && (() => {
+                  const driveInfo = parseDriveImage(student.personalityProfile.temperament);
+                  if (!driveInfo.isUrl) return null;
+                  return (
+                    <div className="space-y-2 rounded-lg border bg-muted/30 p-2.5">
+                      <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+                        <span className="flex items-center gap-1.5 font-medium text-foreground">
+                          <ImageIcon className="size-3.5" />
+                          Bukti Tes Kepribadian
+                        </span>
+                        {driveInfo.originalUrl ? (
+                          <a
+                            href={driveInfo.originalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-primary hover:underline text-xs"
+                          >
+                            Buka Drive <ExternalLink className="size-3" />
+                          </a>
+                        ) : null}
+                      </div>
+                      <a
+                        href={driveInfo.originalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block overflow-hidden rounded-md border bg-background"
+                      >
+                        <img
+                          src={driveInfo.imageUrl}
+                          alt="Bukti Tes Kepribadian Maba"
+                          className="max-h-56 w-full object-contain bg-neutral-950/5 dark:bg-neutral-950/40 p-1 hover:opacity-90 transition-opacity"
+                        />
+                      </a>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">Belum ada data (belum diimpor).</p>
@@ -95,6 +167,7 @@ export function StudentRaportView({ student, computed }: { student: StudentForRa
           </CardContent>
         </Card>
       </div>
+
 
       <Card>
         <CardHeader>
