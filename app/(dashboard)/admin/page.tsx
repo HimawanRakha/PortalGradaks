@@ -7,6 +7,7 @@ import { Role, LogbookStatus, FlagStatus } from "@/app/generated/prisma/enums";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { RegionMatrixTable } from "@/components/admin/region-matrix-table";
 
 export const metadata: Metadata = { title: "Monitoring Nasional - Admin" };
 
@@ -271,73 +272,11 @@ export default async function AdminHomePage() {
         <CardHeader>
           <CardTitle className="text-base font-semibold">Tabel Kelengkapan Input Lintas Region</CardTitle>
           <CardDescription className="text-xs">
-            Rasio pengisian nilai dan penanganan eskalasi per region secara real-time.
+            Rasio pengisian nilai dan penanganan eskalasi per region secara real-time. Klik header kolom untuk sorting.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-muted/40 border-b text-muted-foreground font-medium">
-                  <th className="p-3">Region</th>
-                  <th className="p-3">Jumlah Unit</th>
-                  <th className="p-3">Total Maba</th>
-                  <th className="p-3">Rata-rata Pengisian Nilai</th>
-                  <th className="p-3">Logbook Belum Verifikasi</th>
-                  <th className="p-3">Eskalasi Isu</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {regionMatrix.map((reg) => (
-                  <tr key={reg.id} className="hover:bg-muted/30">
-                    <td className="p-3 font-semibold text-foreground">
-                      <span className="font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded text-[10px] mr-1.5 border border-primary/20">
-                        {reg.code}
-                      </span>
-                      {reg.name}
-                    </td>
-                    <td className="p-3 text-muted-foreground font-mono">{reg.unitsCount} unit</td>
-                    <td className="p-3 text-muted-foreground font-mono">{reg.mabaCount} maba</td>
-                    <td className="p-3 w-56">
-                      {reg.mabaCount === 0 ? (
-                        <span className="text-muted-foreground font-normal">Tidak ada maba</span>
-                      ) : (
-                        <div className="space-y-1">
-                          <div className="flex justify-between font-mono text-[9px]">
-                            <span>Progress Pengisian</span>
-                            <span>{reg.progress}%</span>
-                          </div>
-                          <Progress value={reg.progress} className="h-1.5" />
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {reg.pendingLogbooks > 0 ? (
-                        <span className="text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 text-[10px]">
-                          {reg.pendingLogbooks} pending
-                        </span>
-                      ) : (
-                        <span className="text-green-500 font-bold bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20 text-[10px]">
-                          Lengkap
-                        </span>
-                      )}
-                    </td>
-                    <td className="p-3">
-                      {reg.openFlags > 0 ? (
-                        <span className="text-destructive font-bold bg-destructive/10 px-1.5 py-0.5 rounded border border-destructive/20 text-[10px]">
-                          {reg.openFlags} eskalasi
-                        </span>
-                      ) : (
-                        <span className="text-green-500 font-bold bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20 text-[10px]">
-                          Clean
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <RegionMatrixTable initialRegions={regionMatrix} />
         </CardContent>
       </Card>
     </div>

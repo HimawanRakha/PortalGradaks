@@ -103,6 +103,41 @@ export async function upsertAttendance(params: {
   return attendance;
 }
 
+/** Kepala Region rating a mentor's kehadiran/keaktifan for one session — see MentorAttendance in schema.prisma. */
+export async function upsertMentorAttendance(params: {
+  mentorId: string;
+  sessionId: string;
+  status: "HADIR" | "IZIN" | "ALPA";
+  participationScore: number | null;
+  actorUserId: string;
+}) {
+  const { mentorId, sessionId, status, participationScore, actorUserId } = params;
+  const where = { mentorId_sessionId: { mentorId, sessionId } };
+
+  const existing = await prisma.mentorAttendance.findUnique({ where });
+
+  const mentorAttendance = await prisma.mentorAttendance.upsert({
+    where,
+    update: { status, participationScore, enteredByUserId: actorUserId },
+    create: { mentorId, sessionId, status, participationScore, enteredByUserId: actorUserId },
+  });
+
+  if (existing && (existing.status !== status || existing.participationScore !== participationScore)) {
+    await prisma.auditLog.create({
+      data: {
+        entityType: "MentorAttendance",
+        entityId: mentorAttendance.id,
+        action: "UPDATE",
+        oldValue: { status: existing.status, participationScore: existing.participationScore },
+        newValue: { status, participationScore },
+        changedByUserId: actorUserId,
+      },
+    });
+  }
+
+  return mentorAttendance;
+}
+
 export async function upsertGroupScore(params: {
   groupId: string;
   parameterId: string;

@@ -4,6 +4,7 @@ import { requireMentorUnit, getActivitiesOverview, getRealSessions, getAttendanc
 import { AutoSubmitSelect } from "@/components/scoring/auto-submit-select";
 import { AttendanceGrid } from "@/components/scoring/attendance-grid";
 import { Card, CardContent } from "@/components/ui/card";
+import { saveAttendanceAction } from "@/app/(dashboard)/mentor/actions";
 
 export const metadata: Metadata = { title: "Presensi & Keaktifan" };
 
@@ -75,10 +76,10 @@ export default async function MentorAttendancePage({
       ) : (
         <AttendanceGrid
           key={selectedSession.id}
-          students={students}
-          sessionId={selectedSession.id}
-          mode={selectedSession.mode}
+          people={students}
+          draftKey={`attendance-draft:${selectedSession.id}`}
           initialEntries={initialEntries}
+          onSave={saveAttendanceAction.bind(null, selectedSession.id, selectedSession.mode)}
         />
       )}
     </div>

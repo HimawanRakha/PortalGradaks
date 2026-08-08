@@ -18,29 +18,38 @@ const FILTERS = [
 export default async function AdminVerificationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>;
+  searchParams: Promise<{ filter?: string; regionId?: string }>;
 }) {
   await assertRole(Role.ADMIN);
-  const { filter = "PENDING" } = await searchParams;
+  const { filter = "PENDING", regionId = "ALL" } = await searchParams;
 
-  // 1. Fetch Damen verification toggle setting
-  const damenEnabledSetting = await prisma.setting.findUnique({
-    where: { key: "verification.damenEnabled" },
-  });
+  // 1. Fetch Damen verification toggle setting & regions
+  const [damenEnabledSetting, regions] = await Promise.all([
+    prisma.setting.findUnique({ where: { key: "verification.damenEnabled" } }),
+    prisma.region.findMany({ orderBy: { code: "asc" } }),
+  ]);
   const damenEnabled = damenEnabledSetting ? !!damenEnabledSetting.value : false;
+
+  const regionOptions = [
+    { value: "ALL", label: "Semua Region" },
+    ...regions.map((r) => ({ value: r.id, label: `Region ${r.code} (${r.name})` })),
+  ];
 
   // 2. Fetch students and their verification layers
   const students = await prisma.student.findMany({
-    where: { active: true },
+    where: {
+      active: true,
+      ...(regionId !== "ALL" ? { unit: { regionId } } : {}),
+    },
     include: {
-      unit: { select: { name: true } },
+      unit: { select: { name: true, region: { select: { code: true, name: true } } } },
       verifications: true,
       logbookEntries: {
         select: { status: true },
       },
     },
     orderBy: { name: "asc" },
-    take: 200,
+    take: 300,
   });
 
   const studentVerifyItems = students.map((s) => {
@@ -62,7 +71,7 @@ export default async function AdminVerificationPage({
       id: s.id,
       name: s.name,
       nrp: s.nrp,
-      unitName: s.unit.name,
+      unitName: `${s.unit.name} (${s.unit.region.code})`,
       mentorStatus,
       damenStatus,
       psdmStatus,
@@ -83,7 +92,8 @@ export default async function AdminVerificationPage({
             Verifikasi kelayakan maba oleh PSDM setelah melalui layer Mentor dan Damen.
           </p>
         </div>
-        <form action="/admin/verification" method="GET">
+        <form action="/admin/verification" method="GET" className="flex flex-wrap items-center gap-2">
+          <AutoSubmitSelect name="regionId" defaultValue={regionId} options={regionOptions} />
           <AutoSubmitSelect name="filter" defaultValue={filter} options={FILTERS} />
         </form>
       </div>
@@ -108,3 +118,4 @@ export default async function AdminVerificationPage({
     </div>
   );
 }
+

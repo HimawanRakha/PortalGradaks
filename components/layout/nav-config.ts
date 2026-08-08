@@ -16,6 +16,7 @@ import {
   Download,
   History,
   Trophy,
+  UserCheck,
 } from "lucide-react";
 import { Role } from "@/app/generated/prisma/enums";
 
@@ -63,6 +64,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "Kalibrasi Mentor", href: "/kepala-region/calibration", icon: Scale, primary: true },
     { label: "Papan Eskalasi", href: "/kepala-region/escalation", icon: AlertTriangle, primary: true },
     { label: "Rekap Sub-nilai", href: "/kepala-region/recap", icon: BarChart3, primary: true },
+    { label: "Presensi Mentor", href: "/kepala-region/mentor-attendance", icon: UserCheck },
     { label: "Leaderboard Event", href: "/event/leaderboard", icon: Trophy },
   ],
   [Role.ADMIN]: [
@@ -73,6 +75,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "Finalisasi", href: "/admin/finalization", icon: FileSpreadsheet, primary: true },
     { label: "Ekspor", href: "/admin/exports", icon: Download },
     { label: "Log Aktivitas", href: "/admin/activity-log", icon: History },
+    { label: "Presensi Mentor", href: "/kepala-region/mentor-attendance", icon: UserCheck },
     { label: "Leaderboard Event", href: "/event/leaderboard", icon: Trophy },
   ],
   [Role.EVENT]: [

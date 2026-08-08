@@ -47,7 +47,7 @@ export async function saveStudentScoresAction(
 }
 
 const attendanceEntrySchema = z.object({
-  studentId: z.string(),
+  id: z.string(),
   status: z.enum(["HADIR", "IZIN", "ALPA"]),
   participationScore: z.number().min(1).max(4).nullable(),
 });
@@ -55,16 +55,35 @@ const attendanceEntrySchema = z.object({
 export async function saveAttendanceAction(
   sessionId: string,
   mode: "ONLINE" | "OFFLINE" | "NA",
-  entries: Array<{ studentId: string; status: string; participationScore: number | null }>,
+  entries: Array<{ id: string; status: string; participationScore: number | null }>,
 ): Promise<ActionResult> {
   try {
     const user = await requireMentor();
     const parsed = z.array(attendanceEntrySchema).parse(entries);
+    const submittedStudentIds = new Set(parsed.map((e) => e.id));
+
+    // Fetch all student IDs in mentor's unit
+    const unitStudents = await prisma.student.findMany({
+      where: { unitId: user.unitId! },
+      select: { id: true },
+    });
+    const unitStudentIds = unitStudents.map((s) => s.id);
+
+    // Delete attendance records for unselected/undone students in this unit
+    const unselectedStudentIds = unitStudentIds.filter((id) => !submittedStudentIds.has(id));
+    if (unselectedStudentIds.length > 0) {
+      await prisma.attendance.deleteMany({
+        where: {
+          sessionId,
+          studentId: { in: unselectedStudentIds },
+        },
+      });
+    }
 
     for (const entry of parsed) {
-      await assertStudentInMentorUnit(entry.studentId, user.unitId!);
+      await assertStudentInMentorUnit(entry.id, user.unitId!);
       await upsertAttendance({
-        studentId: entry.studentId,
+        studentId: entry.id,
         sessionId,
         status: entry.status as AttendanceStatus,
         participationScore: entry.participationScore,

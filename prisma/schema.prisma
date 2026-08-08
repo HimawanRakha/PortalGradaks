@@ -199,6 +199,8 @@ model User {
   enteredRegionEventScores RegionEventScore[] @relation("RegionEventScoreEnteredBy")
   finalizedRaports         RaportSnapshot[]
   auditLogs                AuditLog[]
+  mentorAttendances        MentorAttendance[] @relation("MentorAttendanceOf")
+  enteredMentorAttendances MentorAttendance[] @relation("MentorAttendanceEnteredBy")
 
   @@index([regionId])
   @@map("users")
@@ -265,9 +267,10 @@ model ActivitySession {
   quorumThresholdPct Decimal?    @db.Decimal(5, 2) // H-7 ambang kuorum
   createdAt          DateTime    @default(now())
 
-  scores        Score[]
-  attendances   Attendance[]
-  confirmations Confirmation[]
+  scores            Score[]
+  attendances       Attendance[]
+  mentorAttendances MentorAttendance[]
+  confirmations     Confirmation[]
 
   @@unique([activityId, code])
   @@map("activity_sessions")
@@ -482,6 +485,29 @@ model Attendance {
   @@unique([studentId, sessionId])
   @@index([sessionId])
   @@map("attendances")
+}
+
+/// Kepala Region rates each mentor in their region's kehadiran/keaktifan
+/// per session — same status+1-4 shape as maba Attendance, entered by KR
+/// (or read cross-region by Admin) instead of by the mentor themself. No
+/// mode/source/import fields: unlike Attendance there's no CSV import path
+/// for this, so those columns would never be populated.
+model MentorAttendance {
+  id                 String           @id @default(cuid())
+  mentor             User             @relation("MentorAttendanceOf", fields: [mentorId], references: [id])
+  mentorId           String
+  session            ActivitySession  @relation(fields: [sessionId], references: [id])
+  sessionId          String
+  status             AttendanceStatus
+  participationScore Int? // 1-4
+  enteredBy          User?            @relation("MentorAttendanceEnteredBy", fields: [enteredByUserId], references: [id])
+  enteredByUserId    String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([mentorId, sessionId])
+  @@index([sessionId])
+  @@map("mentor_attendances")
 }
 
 // ============================================================
