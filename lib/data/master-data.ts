@@ -94,6 +94,10 @@ export async function getRegionOptions() {
   return prisma.region.findMany({ orderBy: { code: "asc" } });
 }
 
+export async function getDepartmentOptions() {
+  return prisma.department.findMany({ orderBy: { code: "asc" } });
+}
+
 export async function getUnitOptionsWithMentor() {
   return prisma.unit.findMany({
     orderBy: [{ region: { code: "asc" } }, { code: "asc" }],
@@ -108,6 +112,7 @@ export async function getAllAccounts(role?: Role) {
     include: {
       region: { select: { id: true, code: true, name: true } },
       unit: { select: { id: true, code: true, name: true } },
+      department: { select: { id: true, code: true, name: true } },
     },
   });
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { assertCanManageMasterData } from "@/lib/auth/dal";
-import { getAllAccounts, getRegionOptions, getUnitOptionsWithMentor } from "@/lib/data/master-data";
+import { getAllAccounts, getRegionOptions, getUnitOptionsWithMentor, getDepartmentOptions } from "@/lib/data/master-data";
 import { MasterDataSectionNav } from "@/components/master-data/section-nav";
 import { AccountsManager } from "@/components/master-data/accounts-manager";
 
@@ -8,10 +8,11 @@ export const metadata: Metadata = { title: "Kelola Akun - Master Data" };
 
 export default async function AccountsPage() {
   await assertCanManageMasterData();
-  const [users, regions, rawUnits] = await Promise.all([
+  const [users, regions, rawUnits, departments] = await Promise.all([
     getAllAccounts(),
     getRegionOptions(),
     getUnitOptionsWithMentor(),
+    getDepartmentOptions(),
   ]);
 
   // Clean unit types to prevent build warnings
@@ -37,7 +38,7 @@ export default async function AccountsPage() {
 
       <MasterDataSectionNav />
 
-      <AccountsManager initialUsers={users} regions={regions} units={units} />
+      <AccountsManager initialUsers={users} regions={regions} units={units} departments={departments} />
     </div>
   );
 }

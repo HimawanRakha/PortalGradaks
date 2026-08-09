@@ -7,7 +7,7 @@ import { Role } from "@/app/generated/prisma/enums";
 
 export type SessionUser = {
   id: string;
-  nrp: string;
+  nrp: string | null;
   name?: string | null;
   role: Role;
   regionId: string | null;

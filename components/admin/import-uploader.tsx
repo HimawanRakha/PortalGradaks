@@ -19,9 +19,9 @@ const SCHEMAS: Record<ImportType, { title: string; cols: string[]; desc: string;
   },
   [ImportType.ACCOUNTS]: {
     title: "Daftar Akun (Mentor/KR/Damen)",
-    cols: ["nrp", "name", "role", "unit_code", "region_code", "password"],
-    desc: "Membuat akun baru. role = ADMIN/KEPALA_REGION/MENTOR/DAMEN. Tidak akan menimpa password akun yang sudah ada.",
-    sample: "nrp,name,role,unit_code,region_code,password\nmentor.r01-u02,Mentor Baru,MENTOR,R01-U02,,gradaks2026",
+    cols: ["nrp", "name", "role", "unit_code", "region_code", "department_code", "password"],
+    desc: "Membuat atau memperbarui akun. role = ADMIN/KEPALA_REGION/MENTOR/DAMEN. Khusus Mentor, nrp & department_code bersifat opsional. Tidak menimpa password jika dikosongkan pada akun lama.",
+    sample: "nrp,name,role,unit_code,region_code,department_code,password\n,Budi Mentor,MENTOR,R01-U01,,DEP01,gradaks2026\n5025211001,Siti Mentor,MENTOR,R01-U02,,DEP02,gradaks2026",
   },
   [ImportType.PERSONALITY]: {
     title: "Profil Kepribadian (MBTI)",

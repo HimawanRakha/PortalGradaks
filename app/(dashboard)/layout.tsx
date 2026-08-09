@@ -27,7 +27,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex min-h-svh">
       <Sidebar role={user.role} unitLabel={unitLabel} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header role={user.role} name={user.name ?? user.nrp} nrp={user.nrp} />
+        <Header role={user.role} name={user.name ?? user.nrp ?? "Pengguna"} nrp={user.nrp} />
         <main className="flex-1 overflow-x-hidden pb-20 md:pb-0">
           <div className="mx-auto w-full max-w-6xl p-4 md:p-6">{children}</div>
         </main>

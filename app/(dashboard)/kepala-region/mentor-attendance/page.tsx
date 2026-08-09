@@ -14,11 +14,11 @@ export const metadata: Metadata = { title: "Presensi Mentor" };
 export default async function MentorAttendancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ activity?: string; session?: string; regionId?: string }>;
+  searchParams: Promise<{ activity?: string; session?: string; regionId?: string; departmentId?: string }>;
 }) {
   const user = await assertRole(Role.KEPALA_REGION, Role.ADMIN);
   const isAdmin = user.role === Role.ADMIN;
-  const { activity, session, regionId = "ALL" } = await searchParams;
+  const { activity, session, regionId = "ALL", departmentId = "ALL" } = await searchParams;
 
   if (!isAdmin && !user.regionId) {
     throw new Error("Akun Anda belum ditautkan ke wilayah region mana pun.");
@@ -31,6 +31,13 @@ export default async function MentorAttendancePage({
     ...allRegions.map((r) => ({ value: r.id, label: `Region ${r.code} (${r.name})` })),
   ];
 
+  // Fetch all departments for Department filter dropdown
+  const allDepartments = await prisma.department.findMany({ orderBy: { code: "asc" } });
+  const departmentOptions = [
+    { value: "ALL", label: "Semua Departemen" },
+    ...allDepartments.map((d) => ({ value: d.id, label: `${d.name} (${d.code})` })),
+  ];
+
   // 1. Mentors in scope: own region for KR, filtered region for Admin.
   const regions = await prisma.region.findMany({
     where: isAdmin
@@ -40,7 +47,17 @@ export default async function MentorAttendancePage({
     include: {
       units: {
         orderBy: { code: "asc" },
-        include: { mentor: { select: { id: true, name: true, nrp: true } } },
+        include: {
+          mentor: {
+            select: {
+              id: true,
+              name: true,
+              nrp: true,
+              departmentId: true,
+              department: { select: { id: true, code: true, name: true } },
+            },
+          },
+        },
       },
     },
   });
@@ -49,11 +66,16 @@ export default async function MentorAttendancePage({
   // permission error. Send back to sign in fresh instead of crashing.
   if (!isAdmin && regions.length === 0) redirect("/api/auth/force-logout");
 
-  const mentorRows = regions.flatMap((region) =>
+  let mentorRows = regions.flatMap((region) =>
     region.units
       .filter((u) => u.mentor)
       .map((u) => ({ mentor: u.mentor!, unitCode: u.code, unitName: u.name, regionName: region.name })),
   );
+
+  if (departmentId !== "ALL") {
+    mentorRows = mentorRows.filter((r) => r.mentor.departmentId === departmentId);
+  }
+
   const mentorIds = mentorRows.map((r) => r.mentor.id);
 
   // 2. Aggregate kehadiran/keaktifan across every session marked so far —
@@ -164,11 +186,12 @@ export default async function MentorAttendancePage({
               Tingkat Kehadiran dan Rata² Keaktifan dihitung dari sesi yang sudah ditandai saja.
             </CardDescription>
           </div>
-          {isAdmin ? (
-            <form action="/kepala-region/mentor-attendance" method="GET">
+          <form action="/kepala-region/mentor-attendance" method="GET" className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {isAdmin ? (
               <AutoSubmitSelect name="regionId" defaultValue={regionId} options={regionOptions} />
-            </form>
-          ) : null}
+            ) : null}
+            <AutoSubmitSelect name="departmentId" defaultValue={departmentId} options={departmentOptions} />
+          </form>
         </CardHeader>
         <CardContent className="p-0">
           {summary.length === 0 ? (
@@ -179,6 +202,7 @@ export default async function MentorAttendancePage({
                 <thead>
                   <tr className="bg-muted/40 border-b text-muted-foreground font-medium">
                     <th className="p-3">Mentor</th>
+                    <th className="p-3">Departemen</th>
                     <th className="p-3">Unit</th>
                     {isAdmin ? <th className="p-3">Region</th> : null}
                     <th className="p-3 text-right">Sesi Ditandai</th>
@@ -191,7 +215,16 @@ export default async function MentorAttendancePage({
                     <tr key={row.mentor.id} className="hover:bg-muted/30">
                       <td className="p-3 font-medium">
                         {row.mentor.name}
-                        <p className="text-[10px] text-muted-foreground font-mono font-normal">{row.mentor.nrp}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono font-normal">{row.mentor.nrp || "-"}</p>
+                      </td>
+                      <td className="p-3 text-muted-foreground">
+                        {row.mentor.department ? (
+                          <span className="bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-mono text-[11px]">
+                            {row.mentor.department.code} - {row.mentor.department.name}
+                          </span>
+                        ) : (
+                          "-"
+                        )}
                       </td>
                       <td className="p-3 text-muted-foreground">
                         {row.unitCode} · {row.unitName}

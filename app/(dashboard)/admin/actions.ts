@@ -80,39 +80,33 @@ async function importStudentsRow(dataMap: Record<string, string>): Promise<RowOu
 }
 
 async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOutcome> {
-  const nrp = dataMap["nrp"]?.trim();
+  const nrp = dataMap["nrp"]?.trim() || null;
   const name = dataMap["name"]?.trim();
   const roleRaw = dataMap["role"]?.trim().toUpperCase();
   const unitCode = dataMap["unit_code"]?.trim();
   const regionCode = dataMap["region_code"]?.trim();
+  const departmentCode = dataMap["department_code"]?.trim();
   const password = dataMap["password"];
 
   if (!name || !roleRaw || !VALID_ROLES.has(roleRaw)) {
     return { action: ImportRowAction.FAILED, errorReason: `Kolom role harus salah satu dari ${Array.from(VALID_ROLES).join(", ")}.` };
   }
 
-  const existingUser = await prisma.user.findUnique({ where: { nrp } });
-
-  // Password validation: required for new users, optional for existing users
-  if (!existingUser) {
-    if (!password || password.length < 6) {
-      return { action: ImportRowAction.FAILED, errorReason: "Password wajib diisi, minimal 6 karakter untuk akun baru." };
-    }
-  } else {
-    if (password && password.length < 6) {
-      return { action: ImportRowAction.FAILED, errorReason: "Password baru minimal harus 6 karakter jika ingin diubah." };
-    }
-  }
-
   let unitId: string | null = null;
+  let existingUser = nrp ? await prisma.user.findUnique({ where: { nrp } }) : null;
+
   if (roleRaw === Role.MENTOR) {
     if (!unitCode) return { action: ImportRowAction.FAILED, errorReason: "Mentor wajib memiliki unit_code." };
     const unit = await prisma.unit.findUnique({ where: { code: unitCode } });
     if (!unit) return { action: ImportRowAction.FAILED, errorReason: `Unit "${unitCode}" tidak ditemukan.` };
     if (unit.id) {
       const taken = await prisma.user.findUnique({ where: { unitId: unit.id } });
-      if (taken && (!existingUser || taken.id !== existingUser.id)) {
-        return { action: ImportRowAction.FAILED, errorReason: `Unit "${unitCode}" sudah punya mentor.` };
+      if (taken) {
+        if (!existingUser) {
+          existingUser = taken;
+        } else if (taken.id !== existingUser.id) {
+          return { action: ImportRowAction.FAILED, errorReason: `Unit "${unitCode}" sudah punya mentor lain.` };
+        }
       }
     }
     unitId = unit.id;
@@ -126,6 +120,24 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
     regionId = region.id;
   }
 
+  let departmentId: string | null = null;
+  if (departmentCode) {
+    const department = await prisma.department.findUnique({ where: { code: departmentCode } });
+    if (!department) return { action: ImportRowAction.FAILED, errorReason: `Departemen "${departmentCode}" tidak ditemukan.` };
+    departmentId = department.id;
+  }
+
+  // Password validation: required for new users, optional for existing users
+  if (!existingUser) {
+    if (!password || password.length < 6) {
+      return { action: ImportRowAction.FAILED, errorReason: "Password wajib diisi, minimal 6 karakter untuk akun baru." };
+    }
+  } else {
+    if (password && password.length < 6) {
+      return { action: ImportRowAction.FAILED, errorReason: "Password baru minimal harus 6 karakter jika ingin diubah." };
+    }
+  }
+
   if (existingUser) {
     let passwordHash = existingUser.passwordHash;
     if (password && password.trim() !== "") {
@@ -133,7 +145,7 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
     }
     await prisma.user.update({
       where: { id: existingUser.id },
-      data: { name, role: roleRaw as Role, passwordHash, unitId, regionId },
+      data: { nrp, name, role: roleRaw as Role, passwordHash, unitId, regionId, departmentId },
     });
     return {
       action: ImportRowAction.UPDATED,
@@ -142,6 +154,7 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
         role: existingUser.role,
         unitId: existingUser.unitId,
         regionId: existingUser.regionId,
+        departmentId: existingUser.departmentId,
       },
     };
   }
@@ -150,7 +163,7 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
   // Note: matchedStudentId is deliberately left unset — this row creates a
   // User, not a Student, so ImportRow's Student FK doesn't apply here.
   await prisma.user.create({
-    data: { nrp, name, role: roleRaw as Role, passwordHash, unitId, regionId },
+    data: { nrp, name, role: roleRaw as Role, passwordHash, unitId, regionId, departmentId },
   });
   return { action: ImportRowAction.CREATED };
 }

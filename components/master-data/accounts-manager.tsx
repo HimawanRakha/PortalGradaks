@@ -25,12 +25,13 @@ import {
 
 type UserData = {
   id: string;
-  nrp: string;
+  nrp: string | null;
   name: string;
   role: Role;
   active: boolean;
   region: { id: string; code: string; name: string } | null;
   unit: { id: string; code: string; name: string } | null;
+  department: { id: string; code: string; name: string } | null;
 };
 
 type RegionOption = {
@@ -46,14 +47,22 @@ type UnitOption = {
   region: { id: string; code: string; name: string };
 };
 
+type DepartmentOption = {
+  id: string;
+  code: string;
+  name: string;
+};
+
 export function AccountsManager({
   initialUsers,
   regions,
   units,
+  departments,
 }: {
   initialUsers: UserData[];
   regions: RegionOption[];
   units: UnitOption[];
+  departments?: DepartmentOption[];
 }) {
   const [users] = useState<UserData[]>(initialUsers);
   const [filterRole, setFilterRole] = useState<string>("ALL");
@@ -67,17 +76,19 @@ export function AccountsManager({
   const [password, setPassword] = useState("");
   const [regionId, setRegionId] = useState<string>("");
   const [unitId, setUnitId] = useState<string>("");
+  const [departmentId, setDepartmentId] = useState<string>("");
   const [active, setActive] = useState(true);
 
   const openModal = (user?: UserData) => {
     if (user) {
       setEditId(user.id);
-      setNrp(user.nrp);
+      setNrp(user.nrp || "");
       setName(user.name);
       setRole(user.role);
       setPassword("");
       setRegionId(user.region?.id || "");
       setUnitId(user.unit?.id || "");
+      setDepartmentId(user.department?.id || "");
       setActive(user.active);
     } else {
       setEditId(null);
@@ -87,24 +98,31 @@ export function AccountsManager({
       setPassword("gradaks2026");
       setRegionId("");
       setUnitId("");
+      setDepartmentId("");
       setActive(true);
     }
     setIsOpen(true);
   };
 
   const handleSave = () => {
-    if (!nrp || !name || (!editId && !password)) {
-      toast.error("NRP, nama, dan password (untuk akun baru) wajib diisi.");
+    if (!name || (!editId && !password)) {
+      toast.error("Nama dan password (untuk akun baru) wajib diisi.");
+      return;
+    }
+
+    if (role !== Role.MENTOR && !nrp) {
+      toast.error("NRP / Username wajib diisi untuk peran non-Mentor.");
       return;
     }
 
     startTransition(async () => {
       let res;
       const data = {
-        nrp,
+        nrp: nrp || null,
         name,
         role,
         password: password || undefined,
+        departmentId: departmentId || null,
         regionId: role === Role.KEPALA_REGION ? regionId || null : null,
         unitId: role === Role.MENTOR ? unitId || null : null,
         active,
@@ -148,11 +166,10 @@ export function AccountsManager({
           <h3 className="text-lg font-medium">Pengelolaan Akun Pengguna</h3>
           <p className="text-xs text-muted-foreground">Kelola akun administrator, kepala region, mentor, dan dewan verifikator.</p>
         </div>
-        <div className="flex flex-wrap gap-2 items-center">
-          <Label htmlFor="filter-role" className="text-xs font-medium text-muted-foreground">Filter Peran:</Label>
+        <div className="flex items-center gap-2">
           <Select value={filterRole} onValueChange={(val) => setFilterRole(val || "ALL")}>
-            <SelectTrigger id="filter-role" className="w-[180px] h-8 text-xs">
-              <SelectValue placeholder="Pilih Peran" />
+            <SelectTrigger className="w-[160px] h-8 text-xs">
+              <SelectValue placeholder="Semua Peran" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="ALL">Semua Peran</SelectItem>
@@ -163,8 +180,8 @@ export function AccountsManager({
               <SelectItem value={Role.EVENT}>Panitia Event</SelectItem>
             </SelectContent>
           </Select>
-          <Button onClick={() => openModal()} size="sm">
-            <Plus className="size-4" />
+          <Button size="sm" onClick={() => openModal()}>
+            <Plus className="size-3.5" />
             Tambah Akun
           </Button>
         </div>
@@ -173,16 +190,16 @@ export function AccountsManager({
       <Card>
         <CardContent className="p-0">
           {filteredUsers.length === 0 ? (
-            <p className="text-center py-8 text-xs text-muted-foreground">Tidak ada akun ditemukan untuk filter ini.</p>
+            <div className="p-8 text-center text-xs text-muted-foreground">Tidak ada akun ditemukan.</div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-muted/40 border-b text-muted-foreground font-medium">
                     <th className="p-3">Nama</th>
                     <th className="p-3">NRP / Username</th>
                     <th className="p-3">Peran</th>
-                    <th className="p-3">Tautan Struktur</th>
+                    <th className="p-3">Tautan Struktur / Dept</th>
                     <th className="p-3">Status</th>
                     <th className="p-3 text-right">Aksi</th>
                   </tr>
@@ -191,13 +208,13 @@ export function AccountsManager({
                   {filteredUsers.map((user) => (
                     <tr key={user.id} className={`hover:bg-muted/30 ${!user.active ? "opacity-60" : ""}`}>
                       <td className="p-3 font-semibold text-foreground">{user.name}</td>
-                      <td className="p-3 font-mono font-medium text-muted-foreground">{user.nrp}</td>
+                      <td className="p-3 font-mono font-medium text-muted-foreground">{user.nrp || "-"}</td>
                       <td className="p-3">
                         <span className={`px-2 py-0.5 rounded-full border text-[10px] font-bold ${getRoleBadgeClass(user.role)}`}>
                           {user.role}
                         </span>
                       </td>
-                      <td className="p-3 text-muted-foreground font-medium">
+                      <td className="p-3 text-muted-foreground font-medium flex flex-wrap items-center gap-1">
                         {user.role === Role.KEPALA_REGION && user.region && (
                           <span className="bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 px-2 py-0.5 rounded font-mono text-[11px]">
                             Region: {user.region.code} ({user.region.name})
@@ -208,7 +225,12 @@ export function AccountsManager({
                             Unit: {user.unit.code} ({user.unit.name})
                           </span>
                         )}
-                        {user.role !== Role.KEPALA_REGION && user.role !== Role.MENTOR && "-"}
+                        {user.department && (
+                          <span className="bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded font-mono text-[11px]">
+                            Dept: {user.department.code} ({user.department.name})
+                          </span>
+                        )}
+                        {!user.region && !user.unit && !user.department && "-"}
                       </td>
                       <td className="p-3">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
@@ -232,7 +254,6 @@ export function AccountsManager({
         </CardContent>
       </Card>
 
-      {/* Add/Edit Dialog */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -240,8 +261,10 @@ export function AccountsManager({
           </DialogHeader>
           <div className="space-y-4 py-2 text-xs">
             <div className="grid gap-1">
-              <Label htmlFor="user-nrp">NRP / Username</Label>
-              <Input id="user-nrp" placeholder="admin / mentor.r01-u01" value={nrp} onChange={(e) => setNrp(e.target.value)} className="h-8" />
+              <Label htmlFor="user-nrp">
+                NRP / Username {role === Role.MENTOR ? "(Opsional)" : ""}
+              </Label>
+              <Input id="user-nrp" placeholder={role === Role.MENTOR ? "Kosongkan jika tidak ada" : "admin / nrp"} value={nrp} onChange={(e) => setNrp(e.target.value)} className="h-8" />
             </div>
             <div className="grid gap-1">
               <Label htmlFor="user-name">Nama Lengkap</Label>
@@ -266,6 +289,25 @@ export function AccountsManager({
               <Label htmlFor="user-pass">Password {editId && "(Kosongkan jika tidak ingin diubah)"}</Label>
               <Input id="user-pass" type="password" placeholder={editId ? "••••••••" : "gradaks2026"} value={password} onChange={(e) => setPassword(e.target.value)} className="h-8" />
             </div>
+
+            {departments && departments.length > 0 && (
+              <div className="grid gap-1">
+                <Label htmlFor="user-department">Departemen (Opsional)</Label>
+                <Select value={departmentId} onValueChange={(val) => setDepartmentId(val || "")}>
+                  <SelectTrigger id="user-department" className="h-8">
+                    <SelectValue placeholder="Pilih Departemen" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">-- Tidak Ada / Kosong --</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        [{dept.code}] {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             {role === Role.KEPALA_REGION && (
               <div className="grid gap-1">
@@ -311,7 +353,7 @@ export function AccountsManager({
             )}
           </div>
           <DialogFooter>
-            <DialogTrigger render={<Button variant="outline" />}>Batal</DialogTrigger>
+            <DialogTrigger render={<Button variant="outline">Batal</Button>} />
             <Button onClick={handleSave} disabled={pending}>
               {pending && <Loader2 className="size-4 animate-spin" />}
               Simpan

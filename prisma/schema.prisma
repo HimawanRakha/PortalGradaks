@@ -149,6 +149,7 @@ model Department {
   name      String
   createdAt DateTime @default(now())
 
+  users    User[]
   students Student[]
 
   @@map("departments")
@@ -174,17 +175,19 @@ model Unit {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  nrp          String   @unique
+  id           String      @id @default(cuid())
+  nrp          String?     @unique
   name         String
   passwordHash String
   role         Role
-  region       Region?  @relation(fields: [regionId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId String?
+  region       Region?     @relation(fields: [regionId], references: [id])
   regionId     String?
-  unit         Unit?    @relation("MentorUnit", fields: [unitId], references: [id])
-  unitId       String?  @unique
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
+  unit         Unit?       @relation("MentorUnit", fields: [unitId], references: [id])
+  unitId       String?     @unique
+  active       Boolean     @default(true)
+  createdAt    DateTime    @default(now())
 
   raisedFlags              Flag[]             @relation("FlagRaisedBy")
   resolvedFlags            Flag[]             @relation("FlagResolvedBy")
@@ -203,6 +206,7 @@ model User {
   enteredMentorAttendances MentorAttendance[] @relation("MentorAttendanceEnteredBy")
 
   @@index([regionId])
+  @@index([departmentId])
   @@map("users")
 }
 

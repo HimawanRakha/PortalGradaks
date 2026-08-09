@@ -25,7 +25,7 @@ function initials(name: string) {
     .join("");
 }
 
-export function UserMenu({ name, nrp, role }: { name: string; nrp: string; role: Role }) {
+export function UserMenu({ name, nrp, role }: { name: string; nrp: string | null; role: Role }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger render={<Button variant="ghost" className="h-10 gap-2 px-2" />}>
@@ -39,7 +39,7 @@ export function UserMenu({ name, nrp, role }: { name: string; nrp: string; role:
           <DropdownMenuLabel className="font-normal">
             <p className="text-sm font-medium leading-none">{name}</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {ROLE_LABEL[role]} · {nrp}
+              {ROLE_LABEL[role]}{nrp ? ` · ${nrp}` : ""}
             </p>
           </DropdownMenuLabel>
         </DropdownMenuGroup>

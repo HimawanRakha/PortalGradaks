@@ -22,7 +22,7 @@ export function Header({
 }: {
   role: Role;
   name: string;
-  nrp: string;
+  nrp: string | null;
 }) {
   const pathname = usePathname();
 

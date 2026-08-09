@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-type Person = { id: string; name: string; nrp: string };
+type Person = { id: string; name: string; nrp?: string | null };
 export type AttendanceEntry = { status: "HADIR" | "IZIN" | "ALPA"; participationScore: number | null };
 type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -38,24 +38,31 @@ export function AttendanceGrid({
   onSave: (entries: Array<{ id: string } & AttendanceEntry>) => Promise<ActionResult>;
   saveLabel?: string;
 }) {
-  const [entries, setEntries] = useState<Record<string, AttendanceEntry>>(initialEntries);
+  const [entries, setEntries] = useState<Record<string, AttendanceEntry>>(() => {
+    if (typeof window === "undefined") return initialEntries;
+    try {
+      const saved = window.localStorage.getItem(draftKey);
+      if (saved) {
+        return { ...initialEntries, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      console.warn("Failed to load attendance draft", e);
+    }
+    return initialEntries;
+  });
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    // Deliberately an effect, not a lazy useState initializer: localStorage
-    // isn't available during SSR, so reading it in the initializer would
-    // make the client's first render mismatch the server-rendered HTML.
-    const raw = window.localStorage.getItem(draftKey);
-    if (raw) {
-      try {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setEntries((prev) => ({ ...prev, ...JSON.parse(raw) }));
-      } catch {
-        // corrupt draft, ignore
+    // When initialEntries changes (e.g. session switched), reset to server state + draft
+    try {
+      const saved = window.localStorage.getItem(draftKey);
+      if (saved) {
+        setEntries({ ...initialEntries, ...JSON.parse(saved) });
+        return;
       }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    } catch {}
+    setEntries(initialEntries);
+  }, [initialEntries, draftKey]);
 
   function update(id: string, patch: Partial<AttendanceEntry>) {
     setEntries((prev) => {
@@ -91,7 +98,7 @@ export function AttendanceGrid({
               <div key={person.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{person.name}</p>
-                  <p className="text-xs text-muted-foreground">{person.nrp}</p>
+                  <p className="text-xs text-muted-foreground">{person.nrp || "-"}</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="flex gap-1.5">

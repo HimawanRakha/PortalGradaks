@@ -490,10 +490,11 @@ export async function updateScheduleAction(
 // ==========================================
 
 export async function createUserAction(data: {
-  nrp: string;
+  nrp?: string | null;
   name: string;
   role: Role;
   password?: string;
+  departmentId?: string | null;
   regionId?: string | null;
   unitId?: string | null;
 }): Promise<ActionResult> {
@@ -501,13 +502,15 @@ export async function createUserAction(data: {
     await assertAdmin();
     const password = data.password || "gradaks2026";
     const passwordHash = await bcrypt.hash(password, 10);
+    const nrpClean = data.nrp && data.nrp.trim() !== "" ? data.nrp.toLowerCase().trim() : null;
 
     await prisma.user.create({
       data: {
-        nrp: data.nrp.toLowerCase().trim(),
+        nrp: nrpClean,
         name: data.name.trim(),
         role: data.role,
         passwordHash,
+        departmentId: data.departmentId || null,
         regionId: data.regionId || null,
         unitId: data.unitId || null,
       },
@@ -522,10 +525,11 @@ export async function createUserAction(data: {
 export async function updateUserAction(
   id: string,
   data: {
-    nrp: string;
+    nrp?: string | null;
     name: string;
     role: Role;
     password?: string;
+    departmentId?: string | null;
     regionId?: string | null;
     unitId?: string | null;
     active: boolean;
@@ -534,13 +538,15 @@ export async function updateUserAction(
   try {
     await assertAdmin();
     const passwordHash = data.password && data.password.trim() !== "" ? await bcrypt.hash(data.password, 10) : undefined;
+    const nrpClean = data.nrp && data.nrp.trim() !== "" ? data.nrp.toLowerCase().trim() : null;
 
     await prisma.user.update({
       where: { id },
       data: {
-        nrp: data.nrp.toLowerCase().trim(),
+        nrp: nrpClean,
         name: data.name.trim(),
         role: data.role,
+        departmentId: data.departmentId || null,
         regionId: data.regionId || null,
         unitId: data.unitId || null,
         active: !!data.active,

@@ -50,7 +50,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     session({ session, token }) {
       session.user.id = token.id as string;
-      session.user.nrp = token.nrp as string;
+      session.user.nrp = token.nrp as string | null;
       session.user.role = token.role as Role;
       session.user.regionId = token.regionId as string | null;
       session.user.unitId = token.unitId as string | null;
