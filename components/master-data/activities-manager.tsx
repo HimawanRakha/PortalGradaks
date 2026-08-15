@@ -43,6 +43,7 @@ type ActivityData = {
   name: string;
   order: number;
   isImportOnly: boolean;
+  isTemuFteic: boolean;
   active: boolean;
   sessions: SessionData[];
 };
@@ -58,6 +59,7 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
   const [activityName, setActivityName] = useState("");
   const [activityOrder, setActivityOrder] = useState("");
   const [activityIsImport, setActivityIsImport] = useState(false);
+  const [activityIsTemuFteic, setActivityIsTemuFteic] = useState(false);
   const [activityActive, setActivityActive] = useState(true);
 
   // Session Modal State
@@ -77,6 +79,7 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
       setActivityName(activity.name);
       setActivityOrder(String(activity.order));
       setActivityIsImport(activity.isImportOnly);
+      setActivityIsTemuFteic(activity.isTemuFteic);
       setActivityActive(activity.active);
     } else {
       setActivityEditId(null);
@@ -84,6 +87,7 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
       setActivityName("");
       setActivityOrder(String(activities.length + 1));
       setActivityIsImport(false);
+      setActivityIsTemuFteic(false);
       setActivityActive(true);
     }
     setIsActivityOpen(true);
@@ -122,6 +126,7 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
         name: activityName,
         order: Number(activityOrder),
         isImportOnly: activityIsImport,
+        isTemuFteic: activityIsTemuFteic,
         active: activityActive,
       };
 
@@ -240,6 +245,11 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
                   {activity.isImportOnly && (
                     <span className="text-[10px] bg-amber-500/10 text-amber-500 font-medium px-1.5 py-0.5 rounded border border-amber-500/20">
                       Hanya Impor
+                    </span>
+                  )}
+                  {activity.isTemuFteic && (
+                    <span className="text-[10px] bg-blue-500/10 text-blue-500 font-medium px-1.5 py-0.5 rounded border border-blue-500/20">
+                      Temu FTEIC
                     </span>
                   )}
                   <span
@@ -368,6 +378,12 @@ export function ActivitiesManager({ initialActivities }: { initialActivities: Ac
               <Checkbox id="act-import" checked={activityIsImport} onCheckedChange={(val) => setActivityIsImport(!!val)} />
               <Label htmlFor="act-import" className="font-normal cursor-pointer select-none">
                 Hanya Impor (tidak ada pengisian manual dari mentor, misal: Proker Fakultas)
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="act-temu-fteic" checked={activityIsTemuFteic} onCheckedChange={(val) => setActivityIsTemuFteic(!!val)} />
+              <Label htmlFor="act-temu-fteic" className="font-normal cursor-pointer select-none">
+                Bagian dari rangkaian Temu FTEIC (dipakai gate presensi di raport maba)
               </Label>
             </div>
             <div className="flex items-center gap-2">

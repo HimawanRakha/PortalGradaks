@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ForbiddenError } from "@/lib/auth/dal";
 import type { SessionUser } from "@/lib/auth/dal";
-import { InputMethod } from "@/app/generated/prisma/enums";
+import { InputMethod, Role } from "@/app/generated/prisma/enums";
 
 /**
  * The only InputMethods that produce a per-student Score row. GROUP produces
@@ -26,6 +26,7 @@ export const PER_STUDENT_INPUT_METHODS: InputMethod[] = [InputMethod.MENTOR, Inp
  * fresh rather than showing a raw error page.
  */
 export async function requireMentorUnit(user: SessionUser) {
+  if (user.role !== Role.MENTOR) throw new ForbiddenError();
   if (!user.unitId) throw new ForbiddenError("Akun ini belum ditautkan ke unit manapun.");
   const unit = await prisma.unit.findUnique({
     where: { id: user.unitId },

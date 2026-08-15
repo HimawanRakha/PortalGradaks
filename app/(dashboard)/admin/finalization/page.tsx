@@ -29,6 +29,8 @@ export default async function FinalizationPage() {
     personalScore: Number(s.personalScore),
     skillScore: Number(s.skillScore),
     recommendation: s.recommendation,
+    description: s.description,
+    dataInsufficient: s.dataInsufficient,
     finalizedAt: s.finalizedAt,
     finalizedByName: s.finalizedBy.name,
   }));

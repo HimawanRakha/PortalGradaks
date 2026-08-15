@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser, ForbiddenError } from "@/lib/auth/dal";
@@ -42,6 +43,7 @@ export async function saveStudentScoresAction(
     revalidatePath("/mentor");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan skor." };
   }
 }
@@ -96,6 +98,7 @@ export async function saveAttendanceAction(
     revalidatePath("/mentor");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan presensi." };
   }
 }
@@ -115,6 +118,7 @@ export async function createGroupAction(materialId: string, name: string, studen
     revalidatePath("/mentor/scoring");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal membuat kelompok." };
   }
 }
@@ -133,6 +137,7 @@ export async function saveGroupScoresAction(groupId: string, rawValues: Record<s
     revalidatePath("/mentor/scoring");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan nilai kelompok." };
   }
 }
@@ -150,6 +155,7 @@ export async function saveUnitEventScoresAction(unitId: string, rawValues: Recor
     revalidatePath("/mentor/scoring");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan nilai event unit." };
   }
 }
@@ -177,6 +183,7 @@ export async function verifyLogbookEntryAction(
     revalidatePath("/mentor/logbook");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal memverifikasi logbook." };
   }
 }
@@ -192,6 +199,7 @@ export async function confirmSessionAction(sessionId: string): Promise<ActionRes
     revalidatePath("/mentor/confirmations");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal mengonfirmasi sesi." };
   }
 }
@@ -205,6 +213,7 @@ export async function cancelConfirmSessionAction(sessionId: string): Promise<Act
     revalidatePath("/mentor/confirmations");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal membatalkan konfirmasi sesi." };
   }
 }
@@ -227,6 +236,7 @@ export async function raiseFlagAction(studentId: string | null, message: string)
     revalidatePath("/mentor/flags");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal mengirim flag." };
   }
 }

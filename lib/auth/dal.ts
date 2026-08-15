@@ -55,10 +55,21 @@ export const verifySession = cache(async (): Promise<{ user: SessionUser }> => {
 
   const dbUser = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { nrp: true, name: true, role: true, regionId: true, unitId: true, active: true },
+    select: { nrp: true, name: true, role: true, regionId: true, unitId: true, active: true, lastActiveAt: true },
   });
   if (!dbUser || !dbUser.active) {
     redirect("/api/auth/force-logout");
+  }
+
+  // Update lastActiveAt throttled (max once every 2 minutes)
+  const now = new Date();
+  if (!dbUser.lastActiveAt || now.getTime() - dbUser.lastActiveAt.getTime() > 2 * 60 * 1000) {
+    prisma.user
+      .update({
+        where: { id: session.user.id },
+        data: { lastActiveAt: now },
+      })
+      .catch(() => {});
   }
 
   return {

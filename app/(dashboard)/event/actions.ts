@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { assertCanScoreInclenationEvent } from "@/lib/auth/dal";
 import { upsertUnitEventScore, upsertRegionEventScore } from "@/lib/scoring/upsert";
@@ -23,6 +24,7 @@ export async function saveTerkompakAction(regionId: string, rawValues: Record<st
     revalidatePath("/event/leaderboard");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan nilai Terkompak." };
   }
 }
@@ -37,6 +39,7 @@ export async function saveThroneBattleAction(unitId: string, parameterId: string
     revalidatePath("/event/leaderboard");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan Throne Battle." };
   }
 }

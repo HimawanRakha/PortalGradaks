@@ -2,14 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckSquare } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { assertRole } from "@/lib/auth/dal";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { VerificationLayer, VerificationStatus } from "@/app/generated/prisma/enums";
+import { Role, VerificationLayer, VerificationStatus } from "@/app/generated/prisma/enums";
 
 export const metadata: Metadata = { title: "Beranda Damen" };
 
 export default async function DamenHomePage() {
+  await assertRole(Role.DAMEN, Role.ADMIN);
+
   const [totalStudents, verified, rejected] = await Promise.all([
     prisma.student.count({ where: { active: true } }),
     prisma.verification.count({ where: { layer: VerificationLayer.DAMEN, status: VerificationStatus.VERIFIED } }),

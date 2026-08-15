@@ -17,6 +17,7 @@ export default async function ActivitiesPage() {
     name: act.name,
     order: act.order,
     isImportOnly: act.isImportOnly,
+    isTemuFteic: act.isTemuFteic,
     active: act.active,
     sessions: act.sessions.map((sess) => ({
       id: sess.id,

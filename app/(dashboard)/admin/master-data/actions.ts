@@ -1,10 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
-import { Role, ParameterType, InputMethod, SessionMode } from "@/app/generated/prisma/enums";
+import { Role, ParameterType, InputMethod, SessionMode, RecommendationMetric, RuleOperator } from "@/app/generated/prisma/enums";
 import { Prisma } from "@/app/generated/prisma/client";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -44,6 +45,7 @@ export async function createActivityAction(data: {
   name: string;
   order: number;
   isImportOnly?: boolean;
+  isTemuFteic?: boolean;
   active?: boolean;
 }): Promise<ActionResult> {
   try {
@@ -54,6 +56,7 @@ export async function createActivityAction(data: {
         name: data.name.trim(),
         order: Number(data.order),
         isImportOnly: !!data.isImportOnly,
+        isTemuFteic: !!data.isTemuFteic,
         active: data.active ?? true,
       },
     });
@@ -72,6 +75,7 @@ export async function createActivityAction(data: {
     revalidatePath("/admin/master-data");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal membuat kegiatan." };
   }
 }
@@ -83,6 +87,7 @@ export async function updateActivityAction(
     name: string;
     order: number;
     isImportOnly?: boolean;
+    isTemuFteic?: boolean;
     active?: boolean;
   },
 ): Promise<ActionResult> {
@@ -95,6 +100,7 @@ export async function updateActivityAction(
         name: data.name.trim(),
         order: Number(data.order),
         isImportOnly: !!data.isImportOnly,
+        isTemuFteic: !!data.isTemuFteic,
         ...(data.active !== undefined ? { active: data.active } : {}),
       },
     });
@@ -102,6 +108,7 @@ export async function updateActivityAction(
     revalidatePath("/admin/master-data");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal memperbarui kegiatan." };
   }
 }
@@ -114,6 +121,7 @@ export async function setActivityActiveAction(id: string, active: boolean): Prom
     revalidatePath("/admin/master-data");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal mengubah status kegiatan." };
   }
 }
@@ -170,6 +178,7 @@ export async function deleteActivityAction(id: string): Promise<ActionResult> {
     revalidatePath("/admin/master-data");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: friendlyDeleteError(error, "Kegiatan", "Gagal menghapus kegiatan.") };
   }
 }
@@ -198,6 +207,7 @@ export async function createSessionAction(data: {
     revalidatePath("/admin/master-data/schedule");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal membuat sesi." };
   }
 }
@@ -228,6 +238,7 @@ export async function updateSessionAction(
     revalidatePath("/admin/master-data/schedule");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal memperbarui sesi." };
   }
 }
@@ -247,6 +258,7 @@ export async function deleteSessionAction(id: string): Promise<ActionResult> {
     revalidatePath("/admin/master-data/schedule");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: friendlyDeleteError(error, "Sesi", "Gagal menghapus sesi.") };
   }
 }
@@ -277,6 +289,7 @@ export async function createMaterialAction(data: {
     revalidatePath("/admin/master-data");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal membuat materi." };
   }
 }
@@ -307,6 +320,7 @@ export async function updateMaterialAction(
     revalidatePath("/admin/master-data");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal memperbarui materi." };
   }
 }
@@ -319,6 +333,7 @@ export async function setMaterialActiveAction(id: string, active: boolean): Prom
     revalidatePath("/admin/master-data");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal mengubah status materi." };
   }
 }
@@ -354,6 +369,7 @@ export async function deleteMaterialAction(id: string): Promise<ActionResult> {
     revalidatePath("/admin/master-data");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: friendlyDeleteError(error, "Materi", "Gagal menghapus materi.") };
   }
 }
@@ -395,6 +411,7 @@ export async function createParameterAction(data: {
     revalidatePath("/admin/master-data/parameters");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal membuat parameter." };
   }
 }
@@ -438,6 +455,7 @@ export async function updateParameterAction(
     revalidatePath("/admin/master-data/parameters");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal memperbarui parameter." };
   }
 }
@@ -456,6 +474,7 @@ export async function deleteParameterAction(id: string): Promise<ActionResult> {
     revalidatePath("/admin/master-data");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: friendlyDeleteError(error, "Parameter", "Gagal menghapus parameter.") };
   }
 }
@@ -481,6 +500,7 @@ export async function updateScheduleAction(
     revalidatePath("/admin/master-data/schedule");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal memperbarui jadwal." };
   }
 }
@@ -500,8 +520,10 @@ export async function createUserAction(data: {
 }): Promise<ActionResult> {
   try {
     await assertAdmin();
-    const password = data.password || "gradaks2026";
-    const passwordHash = await bcrypt.hash(password, 10);
+    if (!data.password || data.password.length < 6) {
+      return { ok: false, error: "Password wajib diisi, minimal 6 karakter untuk akun baru." };
+    }
+    const passwordHash = await bcrypt.hash(data.password, 12);
     const nrpClean = data.nrp && data.nrp.trim() !== "" ? data.nrp.toLowerCase().trim() : null;
 
     await prisma.user.create({
@@ -518,6 +540,7 @@ export async function createUserAction(data: {
     revalidatePath("/admin/master-data/accounts");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal membuat akun." };
   }
 }
@@ -537,7 +560,7 @@ export async function updateUserAction(
 ): Promise<ActionResult> {
   try {
     await assertAdmin();
-    const passwordHash = data.password && data.password.trim() !== "" ? await bcrypt.hash(data.password, 10) : undefined;
+    const passwordHash = data.password && data.password.trim() !== "" ? await bcrypt.hash(data.password, 12) : undefined;
     const nrpClean = data.nrp && data.nrp.trim() !== "" ? data.nrp.toLowerCase().trim() : null;
 
     await prisma.user.update({
@@ -556,6 +579,7 @@ export async function updateUserAction(
     revalidatePath("/admin/master-data/accounts");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal memperbarui akun." };
   }
 }
@@ -564,7 +588,7 @@ export async function updateUserAction(
 // SETTINGS (WEIGHTS & THRESHOLDS) ACTIONS
 // ==========================================
 
-export async function updateSettingsAction(settings: Record<string, number | boolean>): Promise<ActionResult> {
+export async function updateSettingsAction(settings: Record<string, number | boolean | string>): Promise<ActionResult> {
   try {
     await assertAdmin();
     for (const [key, value] of Object.entries(settings)) {
@@ -577,6 +601,102 @@ export async function updateSettingsAction(settings: Record<string, number | boo
     revalidatePath("/admin/master-data/settings");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal memperbarui pengaturan." };
+  }
+}
+
+// ==========================================
+// RECOMMENDATION RULES ACTIONS
+// ==========================================
+
+type RecommendationRuleInput = {
+  name: string;
+  metric: RecommendationMetric;
+  operator: RuleOperator;
+  value: number;
+  valueTo?: number | null;
+  recommendationText?: string | null;
+  descriptionText?: string | null;
+  order: number;
+  active?: boolean;
+};
+
+function validateRuleInput(data: RecommendationRuleInput): string | null {
+  if (!data.name.trim()) return "Nama rule wajib diisi.";
+  if (data.operator === RuleOperator.BETWEEN && (data.valueTo === null || data.valueTo === undefined)) {
+    return "Operator BETWEEN wajib mengisi nilai batas atas (valueTo).";
+  }
+  if (!data.recommendationText?.trim() && !data.descriptionText?.trim()) {
+    return "Isi minimal salah satu dari teks rekomendasi atau teks deskripsi.";
+  }
+  return null;
+}
+
+export async function createRecommendationRuleAction(data: RecommendationRuleInput): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+    const validationError = validateRuleInput(data);
+    if (validationError) return { ok: false, error: validationError };
+
+    await prisma.recommendationRule.create({
+      data: {
+        name: data.name.trim(),
+        metric: data.metric,
+        operator: data.operator,
+        value: data.value,
+        valueTo: data.operator === RuleOperator.BETWEEN ? data.valueTo : null,
+        recommendationText: data.recommendationText?.trim() || null,
+        descriptionText: data.descriptionText?.trim() || null,
+        order: Number(data.order),
+        active: data.active ?? true,
+      },
+    });
+    revalidatePath("/admin/master-data/recommendation-rules");
+    return { ok: true };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: error instanceof Error ? error.message : "Gagal membuat rule rekomendasi." };
+  }
+}
+
+export async function updateRecommendationRuleAction(id: string, data: RecommendationRuleInput): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+    const validationError = validateRuleInput(data);
+    if (validationError) return { ok: false, error: validationError };
+
+    await prisma.recommendationRule.update({
+      where: { id },
+      data: {
+        name: data.name.trim(),
+        metric: data.metric,
+        operator: data.operator,
+        value: data.value,
+        valueTo: data.operator === RuleOperator.BETWEEN ? data.valueTo : null,
+        recommendationText: data.recommendationText?.trim() || null,
+        descriptionText: data.descriptionText?.trim() || null,
+        order: Number(data.order),
+        active: data.active ?? true,
+      },
+    });
+    revalidatePath("/admin/master-data/recommendation-rules");
+    return { ok: true };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: error instanceof Error ? error.message : "Gagal memperbarui rule rekomendasi." };
+  }
+}
+
+export async function deleteRecommendationRuleAction(id: string): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+    // No FK cascade concerns — nothing ever references a RecommendationRule row.
+    await prisma.recommendationRule.delete({ where: { id } });
+    revalidatePath("/admin/master-data/recommendation-rules");
+    return { ok: true };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: error instanceof Error ? error.message : "Gagal menghapus rule rekomendasi." };
   }
 }

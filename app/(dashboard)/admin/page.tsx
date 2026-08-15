@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Users, BookOpenCheck, Flag, ShieldAlert, ArrowRight } from "lucide-react";
+import { Users, BookOpenCheck, Flag, ShieldAlert, ArrowRight, Activity } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
 import { Role, LogbookStatus, FlagStatus } from "@/app/generated/prisma/enums";
@@ -8,11 +8,14 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { RegionMatrixTable } from "@/components/admin/region-matrix-table";
+import { ActiveUsersCard } from "@/components/admin/active-users-card";
 
 export const metadata: Metadata = { title: "Monitoring Nasional - Admin" };
 
 export default async function AdminHomePage() {
   await assertRole(Role.ADMIN);
+
+  const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
 
   // 1. Fetch national overview stats
   const [
@@ -23,6 +26,7 @@ export default async function AdminHomePage() {
     unverifiedLogbooks,
     openFlags,
     regions,
+    rawActiveUsers,
   ] = await Promise.all([
     prisma.student.count({ where: { active: true } }),
     prisma.student.count({ where: { active: true, personalityProfile: null } }),
@@ -57,7 +61,33 @@ export default async function AdminHomePage() {
         },
       },
     }),
+    prisma.user.findMany({
+      where: {
+        active: true,
+        lastActiveAt: { gte: fifteenMinutesAgo },
+      },
+      orderBy: { lastActiveAt: "desc" },
+      select: {
+        id: true,
+        name: true,
+        nrp: true,
+        role: true,
+        lastActiveAt: true,
+        region: { select: { name: true } },
+        unit: { select: { code: true } },
+      },
+    }),
   ]);
+
+  const activeUsers = rawActiveUsers.map((u) => ({
+    id: u.id,
+    name: u.name,
+    nrp: u.nrp,
+    role: u.role,
+    lastActiveAt: u.lastActiveAt!,
+    regionName: u.region?.name,
+    unitCode: u.unit?.code,
+  }));
 
   // 2. Fetch list of maba with incomplete data for follow-up (take 5)
   const followUpMaba = await prisma.student.findMany({
@@ -138,7 +168,13 @@ export default async function AdminHomePage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <StatCard
+          label="Pengguna Online (15m)"
+          value={activeUsers.length}
+          icon={Activity}
+          tone="success"
+        />
         <StatCard label="Total Mahasiswa Baru" value={totalMaba} icon={Users} />
         <StatCard
           label="Logbook Menunggu Verifikasi"
@@ -159,6 +195,9 @@ export default async function AdminHomePage() {
           tone={missingPersonality > 0 ? "warning" : "success"}
         />
       </div>
+
+      {/* Real-time Active Users Monitor */}
+      <ActiveUsersCard activeUsers={activeUsers} />
 
       {/* Detail Incompleteness Checklist */}
       <div className="grid gap-6 md:grid-cols-3">

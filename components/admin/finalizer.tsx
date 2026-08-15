@@ -14,6 +14,8 @@ type SnapshotItem = {
   personalScore: number;
   skillScore: number;
   recommendation: string | null;
+  description: string | null;
+  dataInsufficient: boolean;
   finalizedAt: Date;
   finalizedByName: string;
 };
@@ -76,11 +78,12 @@ export function Finalizer({
 
           <div className="border-l-4 border-l-amber-500 bg-amber-500/5 p-3.5 rounded-lg space-y-1 text-foreground">
             <p className="font-bold flex items-center gap-1">
-              <ShieldAlert className="size-3.5 text-amber-500" /> Ketentuan Kelulusan Minimum:
+              <ShieldAlert className="size-3.5 text-amber-500" /> Gate Presensi Temu FTEIC:
             </p>
             <ul className="list-disc pl-4 space-y-0.5 text-[10px] text-muted-foreground">
-              <li>Kehadiran (rata-rata sub-nilai Kebersamaan/A.1) minimal 70%.</li>
-              <li>Maba yang tidak memenuhi kriteria di atas otomatis ditandai <strong>TIDAK LULUS</strong>.</li>
+              <li>Maba yang melewati ambang absen Temu FTEIC (lihat Master Data → Bobot Penilaian) tetap dihitung nilainya, tapi
+                ditandai <strong>Tidak Dapat Diagregasi</strong> dan dilewati dari evaluasi Rule Rekomendasi.</li>
+              <li>Maba lainnya dievaluasi otomatis oleh Rule Rekomendasi (Master Data → Rule Rekomendasi).</li>
             </ul>
           </div>
 
@@ -133,12 +136,15 @@ export function Finalizer({
                       <td className="p-3 text-center font-mono font-bold">{s.personalScore.toFixed(1)}</td>
                       <td className="p-3 text-center font-mono font-bold">{s.skillScore.toFixed(1)}</td>
                       <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                          s.recommendation === "LULUS" ? "bg-green-500/10 text-green-500 border-green-500/20" :
-                          s.recommendation?.startsWith("TIDAK") ? "bg-red-500/10 text-red-500 border-red-500/20" :
-                          "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                        }`}>
-                          {s.recommendation}
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                            s.dataInsufficient
+                              ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                              : "bg-muted text-muted-foreground border-border"
+                          }`}
+                          title={s.description ?? undefined}
+                        >
+                          {s.recommendation ?? "—"}
                         </span>
                       </td>
                       <td className="p-3 text-muted-foreground">{s.finalizedByName}</td>

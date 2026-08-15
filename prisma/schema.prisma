@@ -187,6 +187,7 @@ model User {
   unit         Unit?       @relation("MentorUnit", fields: [unitId], references: [id])
   unitId       String?     @unique
   active       Boolean     @default(true)
+  lastActiveAt DateTime?
   createdAt    DateTime    @default(now())
 
   raisedFlags              Flag[]             @relation("FlagRaisedBy")
@@ -248,6 +249,11 @@ model Activity {
   name         String
   order        Int
   isImportOnly Boolean  @default(false) // e.g. Proker fakultas: no mentor input at all
+  /// Marks this activity as part of the "Temu FTEIC" meeting series for the
+  /// attendance-shortfall gate (see lib/scoring/temu-attendance.ts) — a flag
+  /// rather than a hardcoded code list so next year's TEMU_4 needs only a
+  /// checkbox in Master Data, never a code change.
+  isTemuFteic  Boolean  @default(false)
   /// Retire without deleting — once sessions/scores exist under an activity,
   /// hard-delete is rightly blocked by FK constraints (protects real mentor
   /// data). Deactivating hides it from active use everywhere else instead.
@@ -689,13 +695,80 @@ model RaportSnapshot {
   studentId         String   @unique
   personalScore     Decimal  @db.Decimal(8, 3)
   skillScore        Decimal  @db.Decimal(8, 3)
+  /// Also carries { temuAbsences, temuOfflineAbsences } alongside the full
+  /// ComputedScores payload — the counts that drove `dataInsufficient` below,
+  /// kept here rather than as new scalar columns since this is already the
+  /// established "computation-time diagnostic facts" bucket.
   breakdown         Json
+  /// Either the fixed "Tidak Dapat Diagregasi" system text (when
+  /// dataInsufficient) or the RecommendationRule engine's matched headline —
+  /// never the retired LULUS/TIDAK LULUS vocabulary.
   recommendation    String?
+  /// Full auto-generated narrative: the fixed data-insufficient warning, or
+  /// the concatenation of every matching RecommendationRule's descriptionText.
+  description       String?  @db.Text
+  /// True when the Temu FTEIC attendance-shortfall gate is met — the student's
+  /// scores still compute and display, but this student is excluded from
+  /// cohort-level aggregation/processing (recap, exports' summary stats)
+  /// pending manual HMD follow-up, per brief. Recommendation-rule evaluation
+  /// is skipped entirely when this is true.
+  dataInsufficient  Boolean  @default(false)
   finalizedBy       User     @relation(fields: [finalizedByUserId], references: [id])
   finalizedByUserId String
   finalizedAt       DateTime @default(now())
 
   @@map("raport_snapshots")
+}
+
+/// The 9 metrics a RecommendationRule can test against — a 1:1 mirror of
+/// ComputedScores' actual shape (personal.score, skill.score, 3 personal
+/// groups, 4 skill categories). That shape is itself hardcoded in
+/// calculate.ts, so a free-text metric field would buy no real flexibility
+/// while adding typo risk this enum removes for free.
+enum RecommendationMetric {
+  PERSONAL_SCORE
+  SKILL_SCORE
+  PERSONAL_KOLEKTIF
+  PERSONAL_KOLABORASI
+  PERSONAL_KONTRIBUSI
+  SKILL_MANAJERIAL
+  SKILL_KEILMIAHAN
+  SKILL_MINAT_BAKAT
+  SKILL_KEWIRAUSAHAAN
+}
+
+enum RuleOperator {
+  LT
+  LTE
+  GT
+  GTE
+  BETWEEN
+}
+
+/// Admin-configurable (Master Data) condition -> auto-generated text, the
+/// engine behind RaportSnapshot.recommendation/description for every student
+/// who does NOT trip the attendance-shortfall gate. A rule with
+/// recommendationText set is eligible to become the headline label (first
+/// match by `order` wins); every matching rule's descriptionText (if any)
+/// concatenates in order — see lib/scoring/recommendation.ts. Deliberately a
+/// real table, not a Setting Json blob: this is structurally the same shape
+/// as Parameter (a handful of typed fields, per-row CRUD, realistically <20
+/// rows), and every other list of this shape in this schema is a real table.
+model RecommendationRule {
+  id                 String               @id @default(cuid())
+  name               String
+  metric             RecommendationMetric
+  operator           RuleOperator
+  value              Decimal              @db.Decimal(5, 2)
+  valueTo            Decimal?             @db.Decimal(5, 2) // only meaningful when operator = BETWEEN
+  recommendationText String?              @db.Text
+  descriptionText    String?              @db.Text
+  order              Int
+  active             Boolean              @default(true)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  @@map("recommendation_rules")
 }
 
 // ============================================================

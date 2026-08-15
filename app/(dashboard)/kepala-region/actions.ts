@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { assertRole, ForbiddenError } from "@/lib/auth/dal";
@@ -36,6 +37,7 @@ export async function resolveFlagAction(flagId: string): Promise<ActionResult> {
     revalidatePath("/mentor/flags");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal menyelesaikan flag." };
   }
 }
@@ -97,6 +99,7 @@ export async function saveMentorAttendanceAction(
     revalidatePath("/kepala-region/mentor-attendance");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan presensi mentor." };
   }
 }

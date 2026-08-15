@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
 import { Role, VerificationLayer, VerificationStatus } from "@/app/generated/prisma/enums";
@@ -31,6 +32,7 @@ export async function verifyDamenLayerAction(
     revalidatePath("/damen/verification");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal memverifikasi." };
   }
 }

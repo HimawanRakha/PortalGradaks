@@ -95,7 +95,7 @@ export function AccountsManager({
       setNrp("");
       setName("");
       setRole(Role.MENTOR);
-      setPassword("gradaks2026");
+      setPassword("");
       setRegionId("");
       setUnitId("");
       setDepartmentId("");
@@ -287,7 +287,7 @@ export function AccountsManager({
             </div>
             <div className="grid gap-1">
               <Label htmlFor="user-pass">Password {editId && "(Kosongkan jika tidak ingin diubah)"}</Label>
-              <Input id="user-pass" type="password" placeholder={editId ? "••••••••" : "gradaks2026"} value={password} onChange={(e) => setPassword(e.target.value)} className="h-8" />
+              <Input id="user-pass" type="password" placeholder={editId ? "••••••••" : "Minimal 6 karakter"} value={password} onChange={(e) => setPassword(e.target.value)} className="h-8" />
             </div>
 
             {departments && departments.length > 0 && (

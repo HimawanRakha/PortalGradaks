@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ClipboardList, Trophy, MapPin, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { assertRole } from "@/lib/auth/dal";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Role } from "@/app/generated/prisma/enums";
 
 export const metadata: Metadata = { title: "Beranda Event" };
 
 export default async function EventHomePage() {
+  await assertRole(Role.ADMIN, Role.EVENT);
+
   const [regionCount, unitCount, regionsScored, unitsWithThroneWinner] = await Promise.all([
     prisma.region.count(),
     prisma.unit.count(),

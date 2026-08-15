@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
+import { assertRole } from "@/lib/auth/dal";
 import { AutoSubmitSelect } from "@/components/scoring/auto-submit-select";
 import { DamenVerifyCard } from "@/components/scoring/damen-verify-card";
 import { Card, CardContent } from "@/components/ui/card";
-import { VerificationLayer } from "@/app/generated/prisma/enums";
+import { Role, VerificationLayer } from "@/app/generated/prisma/enums";
 
 export const metadata: Metadata = { title: "Verifikasi Akhir" };
 
@@ -19,6 +20,7 @@ export default async function DamenVerificationPage({
 }: {
   searchParams: Promise<{ filter?: string }>;
 }) {
+  await assertRole(Role.DAMEN, Role.ADMIN);
   const { filter = "PENDING" } = await searchParams;
 
   const students = await prisma.student.findMany({

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 
 // Optimistic redirect only, based on cookie/session presence — the real
 // authorization decision (role + scope) always happens server-side in
@@ -8,6 +9,35 @@ import { auth } from "@/auth";
 export default auth((req) => {
   const host = req.headers.get("host") || "";
   const pathname = req.nextUrl.pathname;
+
+  // Rate limiting — proxy defaults to the Node.js runtime in this Next.js
+  // version (not Edge), and Server Function calls route through here too
+  // (they're POSTs to their originating page), so both the public NRP
+  // lookup and the login form submission can be throttled from one place.
+  // Thresholds are deliberately generous (shared campus IPs/NAT can put many
+  // legitimate students behind one address) — this blunts scripted
+  // scraping/brute-force, not normal concurrent use.
+  if (pathname === "/cek-raport" && req.nextUrl.searchParams.has("nrp")) {
+    const ip = getClientIp(req);
+    const { allowed, retryAfterSeconds } = checkRateLimit(`cek-raport:${ip}`, 40, 5 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Terlalu banyak permintaan. Silakan coba lagi beberapa menit lagi." },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } },
+      );
+    }
+  }
+
+  if (pathname === "/login" && req.method === "POST") {
+    const ip = getClientIp(req);
+    const { allowed, retryAfterSeconds } = checkRateLimit(`login:${ip}`, 10, 5 * 60 * 1000);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Terlalu banyak percobaan masuk. Silakan coba lagi beberapa menit lagi." },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } },
+      );
+    }
+  }
 
   // 1. Maba domain / subdomain handling (e.g. contains 'raport', 'maba', or 'cek-raport')
   if (host.includes("raport") || host.includes("maba") || host.includes("cek-raport")) {

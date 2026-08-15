@@ -5,8 +5,13 @@ import { randomUUID } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient, Prisma } from "../app/generated/prisma/client";
-import { Role, ParameterType, InputMethod, SessionMode, AttendanceStatus, LogbookStatus, ScoreSource, QuestionnaireCode } from "../app/generated/prisma/enums";
-import { SETTING_KEYS } from "../lib/scoring/setting-keys";
+import { Role, ParameterType, InputMethod, SessionMode, AttendanceStatus, LogbookStatus, ScoreSource, QuestionnaireCode, RecommendationMetric, RuleOperator } from "../app/generated/prisma/enums";
+import {
+  SETTING_KEYS,
+  DEFAULT_TEMU_ABSENCE_THRESHOLD,
+  DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD,
+  DEFAULT_DATA_INSUFFICIENT_MESSAGE,
+} from "../lib/scoring/setting-keys";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -119,9 +124,12 @@ function placeholderAnchors(paramLabel: string) {
 }
 
 async function seedSettings() {
-  const defaults: Array<{ key: string; value: number | boolean }> = [
+  const defaults: Array<{ key: string; value: number | boolean | string }> = [
     { key: SETTING_KEYS.calibrationThreshold, value: 0.6 },
     { key: SETTING_KEYS.damenEnabled, value: false },
+    { key: SETTING_KEYS.temuAbsenceThreshold, value: DEFAULT_TEMU_ABSENCE_THRESHOLD },
+    { key: SETTING_KEYS.temuOfflineAbsenceThreshold, value: DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD },
+    { key: SETTING_KEYS.dataInsufficientMessage, value: DEFAULT_DATA_INSUFFICIENT_MESSAGE },
   ];
   for (const setting of defaults) {
     await prisma.setting.upsert({
@@ -130,6 +138,62 @@ async function seedSettings() {
       create: { key: setting.key, value: setting.value },
     });
   }
+}
+
+/**
+ * Starter rules for the admin-configurable recommendation engine (see
+ * lib/scoring/recommendation.ts) — deliberately neutral wording, not the
+ * retired LULUS/TIDAK LULUS vocabulary. PSDM is expected to edit/replace
+ * these from Master Data -> Rule Rekomendasi; this just avoids an empty
+ * table on a fresh seed.
+ */
+async function seedRecommendationRules() {
+  await prisma.recommendationRule.createMany({
+    data: [
+      {
+        name: "Personal & Keahlian tinggi",
+        metric: RecommendationMetric.PERSONAL_SCORE,
+        operator: RuleOperator.GTE,
+        value: 85,
+        recommendationText: "Menunjukkan Perkembangan Sangat Baik",
+        descriptionText: "Nilai Personal maba berada pada rentang sangat baik, menunjukkan keterlibatan dan perkembangan yang konsisten sepanjang program.",
+        order: 1,
+      },
+      {
+        name: "Personal cukup, perlu pendampingan",
+        metric: RecommendationMetric.PERSONAL_SCORE,
+        operator: RuleOperator.LT,
+        value: 60,
+        recommendationText: "Perlu Pendampingan Tambahan",
+        descriptionText: "Nilai Personal maba masih di bawah standar yang diharapkan — disarankan pendampingan tambahan dari mentor.",
+        order: 2,
+      },
+      {
+        name: "Keahlian tinggi",
+        metric: RecommendationMetric.SKILL_SCORE,
+        operator: RuleOperator.GTE,
+        value: 85,
+        descriptionText: "Nilai Keahlian menonjol, berpotensi untuk dilibatkan lebih jauh di kegiatan/kepanitiaan sesuai minat.",
+        order: 3,
+      },
+      {
+        name: "Keahlian rendah",
+        metric: RecommendationMetric.SKILL_SCORE,
+        operator: RuleOperator.LT,
+        value: 60,
+        descriptionText: "Nilai Keahlian masih di bawah standar yang diharapkan pada rumpun minat yang diikuti.",
+        order: 4,
+      },
+      {
+        name: "Default — perkembangan baik",
+        metric: RecommendationMetric.PERSONAL_SCORE,
+        operator: RuleOperator.GTE,
+        value: 60,
+        recommendationText: "Menunjukkan Perkembangan Baik",
+        order: 5,
+      },
+    ],
+  });
 }
 
 async function seedDepartments() {
@@ -239,11 +303,11 @@ type SeededParameter = {
   clusterLabel: string | null;
 };
 
-async function seedActivity(code: string, name: string, order: number, isImportOnly = false): Promise<SeededActivity> {
+async function seedActivity(code: string, name: string, order: number, isImportOnly = false, isTemuFteic = false): Promise<SeededActivity> {
   const activity = await prisma.activity.upsert({
     where: { code },
-    update: { name, order, isImportOnly },
-    create: { id: randomUUID(), code, name, order, isImportOnly },
+    update: { name, order, isImportOnly, isTemuFteic },
+    create: { id: randomUUID(), code, name, order, isImportOnly, isTemuFteic },
   });
   return activity;
 }
@@ -325,11 +389,11 @@ async function seedMaterialWithParams(
 
 async function seedProgramStructure() {
   const inclenation = await seedActivity("INCLENATION", "Inclenation", 1);
-  const temu0 = await seedActivity("TEMU_0", "Temu FTEIC 0 (Baseline)", 2);
-  const temu1 = await seedActivity("TEMU_1", "Temu FTEIC 1", 3);
-  const temu2 = await seedActivity("TEMU_2", "Temu FTEIC 2", 4);
-  const temu3 = await seedActivity("TEMU_3", "Temu FTEIC 3", 5);
-  const temu31 = await seedActivity("TEMU_3_1", "Temu FTEIC 3.1 (Refleksi)", 6);
+  const temu0 = await seedActivity("TEMU_0", "Temu FTEIC 0 (Baseline)", 2, false, true);
+  const temu1 = await seedActivity("TEMU_1", "Temu FTEIC 1", 3, false, true);
+  const temu2 = await seedActivity("TEMU_2", "Temu FTEIC 2", 4, false, true);
+  const temu3 = await seedActivity("TEMU_3", "Temu FTEIC 3", 5, false, true);
+  const temu31 = await seedActivity("TEMU_3_1", "Temu FTEIC 3.1 (Refleksi)", 6, false, true);
   const proker = await seedActivity("PROKER", "Proker Fakultas", 7, true);
 
   const inclUmum = await seedSession(inclenation.id, "UMUM", "Umum", SessionMode.NA);
@@ -676,6 +740,7 @@ async function main() {
   await prisma.importRow.deleteMany();
   await prisma.import.deleteMany();
   await prisma.raportSnapshot.deleteMany();
+  await prisma.recommendationRule.deleteMany();
   await prisma.verification.deleteMany();
   await prisma.flag.deleteMany();
   await prisma.confirmation.deleteMany();
@@ -699,6 +764,7 @@ async function main() {
   console.log("Database cleaned successfully.");
 
   await seedSettings();
+  await seedRecommendationRules();
   const departments = await seedDepartments();
   const { regions, units } = await seedRegionsAndUnits();
   const students = await seedStudents(units, departments);

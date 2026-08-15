@@ -12,6 +12,7 @@ const SECTIONS = [
   { href: "/admin/master-data/schedule", label: "Jadwal & Kuorum" },
   { href: "/admin/master-data/accounts", label: "Akun" },
   { href: "/admin/master-data/settings", label: "Bobot Penilaian" },
+  { href: "/admin/master-data/recommendation-rules", label: "Rule Rekomendasi" },
 ];
 
 /**

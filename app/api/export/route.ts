@@ -1,7 +1,22 @@
 import ExcelJS from "exceljs";
+import { unstable_rethrow } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
 import { Role, AttendanceStatus } from "@/app/generated/prisma/enums";
+
+/**
+ * Neutralizes formula/DDE injection: a cell value starting with =/+/-/@
+ * (e.g. from a bulk CSV import of student names or personality data) would
+ * otherwise be interpreted as a formula by Excel/Sheets when the export is
+ * reopened. Prefixing with an apostrophe forces literal-text interpretation.
+ * Only strings are at risk; numbers/enums/nulls pass through unchanged.
+ */
+function sanitizeCell<T>(value: T): T {
+  if (typeof value === "string" && /^[=+\-@]/.test(value)) {
+    return `'${value}` as T;
+  }
+  return value;
+}
 
 export async function GET(request: Request) {
   try {
@@ -74,12 +89,12 @@ export async function GET(request: Request) {
       students.forEach((student) => {
         const rowBase = {
           nrp: student.nrp,
-          name: student.name,
+          name: sanitizeCell(student.name),
           region: student.unit.region.name,
           unit: student.unit.name,
           department: student.department?.name || "-",
-          mbti: student.personalityProfile?.mbtiType || "-",
-          temperament: student.personalityProfile?.temperament || "-",
+          mbti: sanitizeCell(student.personalityProfile?.mbtiType) || "-",
+          temperament: sanitizeCell(student.personalityProfile?.temperament) || "-",
         };
 
         // Write scores
@@ -138,7 +153,7 @@ export async function GET(request: Request) {
       students.forEach((student) => {
         const rowData: Record<string, string | number> = {
           nrp: student.nrp,
-          name: student.name,
+          name: sanitizeCell(student.name),
           region: student.unit.region.name,
           unit: student.unit.name,
           department: student.department?.name || "-",
@@ -300,6 +315,7 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Gagal mengekspor data." }), {
       status: 500,
       headers: { "Content-Type": "application/json" },

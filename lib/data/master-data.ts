@@ -117,6 +117,10 @@ export async function getAllAccounts(role?: Role) {
   });
 }
 
+export async function getRecommendationRules() {
+  return prisma.recommendationRule.findMany({ orderBy: { order: "asc" } });
+}
+
 export async function getMasterDataOverviewCounts() {
   const [activityCount, sessionCount, unscheduledSessionCount, materialCount, parameterActiveCount, parameterTotalCount, userActiveCount, userTotalCount, settingCount] =
     await Promise.all([

@@ -84,7 +84,15 @@ export default async function CekRaportPage({ searchParams }: { searchParams: Pr
               </p>
             </div>
 
-            {student.raportSnapshot ? (
+            {student.raportSnapshot?.dataInsufficient ? (
+              <Alert className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20">
+                <TriangleAlert className="size-4" />
+                <AlertTitle className="font-semibold">{student.raportSnapshot.recommendation}</AlertTitle>
+                <AlertDescription className="text-xs mt-1 text-amber-700/90 dark:text-amber-400/90">
+                  {student.raportSnapshot.description}
+                </AlertDescription>
+              </Alert>
+            ) : student.raportSnapshot ? (
               <Alert className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
                 <CheckCircle2 className="size-4" />
                 <AlertTitle className="font-semibold">Raport Final — {student.raportSnapshot.recommendation}</AlertTitle>
@@ -96,6 +104,9 @@ export default async function CekRaportPage({ searchParams }: { searchParams: Pr
                     year: "numeric",
                   })}
                   . Nilai di bawah ini adalah nilai resmi akhir dan tidak lagi berubah.
+                  {student.raportSnapshot.description ? (
+                    <span className="mt-1 block">{student.raportSnapshot.description}</span>
+                  ) : null}
                 </AlertDescription>
               </Alert>
             ) : (

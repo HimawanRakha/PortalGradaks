@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { unstable_rethrow } from "next/navigation";
 import { parse } from "csv-parse/sync";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
@@ -16,8 +17,10 @@ import {
 } from "@/app/generated/prisma/enums";
 import { Prisma } from "@/app/generated/prisma/client";
 import { computeScores } from "@/lib/scoring/calculate";
-import { SETTING_KEYS } from "@/lib/scoring/setting-keys";
+import { SETTING_KEYS, DEFAULT_TEMU_ABSENCE_THRESHOLD, DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD, DEFAULT_DATA_INSUFFICIENT_MESSAGE } from "@/lib/scoring/setting-keys";
 import { upsertAttendance, upsertScore } from "@/lib/scoring/upsert";
+import { getTemuAttendanceCounts } from "@/lib/scoring/temu-attendance";
+import { getActiveRecommendationRulesForEvaluation, evaluateRecommendation } from "@/lib/scoring/recommendation";
 
 type ActionResult = { ok: true; summary?: string } | { ok: false; error: string };
 
@@ -141,7 +144,7 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
   if (existingUser) {
     let passwordHash = existingUser.passwordHash;
     if (password && password.trim() !== "") {
-      passwordHash = await bcrypt.hash(password, 10);
+      passwordHash = await bcrypt.hash(password, 12);
     }
     await prisma.user.update({
       where: { id: existingUser.id },
@@ -159,7 +162,7 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
     };
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
+  const passwordHash = await bcrypt.hash(password, 12);
   // Note: matchedStudentId is deliberately left unset — this row creates a
   // User, not a Student, so ImportRow's Student FK doesn't apply here.
   await prisma.user.create({
@@ -394,6 +397,7 @@ export async function importCsvAction(type: ImportType, fileName: string, csvCon
     revalidatePath("/admin/imports");
     return { ok: true, summary: `Impor selesai: ${matchedCount} baris berhasil diproses, ${failedCount} baris gagal/tidak cocok.` };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal mengimpor file." };
   }
 }
@@ -418,6 +422,7 @@ export async function verifyPsdmLayerAction(studentId: string, status: "VERIFIED
     revalidatePath("/admin/verification");
     return { ok: true };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan verifikasi." };
   }
 }
@@ -444,11 +449,20 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
   try {
     const user = await assertRole(Role.ADMIN);
 
-    const [students, damenSetting] = await Promise.all([
+    const [students, damenSetting, temuAbsenceSetting, temuOfflineAbsenceSetting, dataInsufficientMsgSetting, activeRules] = await Promise.all([
       prisma.student.findMany({ where: { active: true }, select: { id: true } }),
       prisma.setting.findUnique({ where: { key: SETTING_KEYS.damenEnabled } }),
+      prisma.setting.findUnique({ where: { key: SETTING_KEYS.temuAbsenceThreshold } }),
+      prisma.setting.findUnique({ where: { key: SETTING_KEYS.temuOfflineAbsenceThreshold } }),
+      prisma.setting.findUnique({ where: { key: SETTING_KEYS.dataInsufficientMessage } }),
+      getActiveRecommendationRulesForEvaluation(),
     ]);
     const damenEnabled = !!damenSetting?.value;
+    const temuAbsenceThreshold = typeof temuAbsenceSetting?.value === "number" ? temuAbsenceSetting.value : DEFAULT_TEMU_ABSENCE_THRESHOLD;
+    const temuOfflineAbsenceThreshold =
+      typeof temuOfflineAbsenceSetting?.value === "number" ? temuOfflineAbsenceSetting.value : DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD;
+    const dataInsufficientMessage =
+      typeof dataInsufficientMsgSetting?.value === "string" ? dataInsufficientMsgSetting.value : DEFAULT_DATA_INSUFFICIENT_MESSAGE;
 
     const studentIds = students.map((s) => s.id);
     const verifications = await prisma.verification.findMany({ where: { studentId: { in: studentIds } } });
@@ -461,6 +475,7 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
 
     let finalizedCount = 0;
     let skippedCount = 0;
+    let dataInsufficientCount = 0;
 
     for (const student of students) {
       const studentVerifications = verificationsByStudent.get(student.id) ?? [];
@@ -474,21 +489,29 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
       const computed = await computeScores(student.id);
       const personalScore = computed.personal.score ?? 0;
       const skillScore = computed.skill.score ?? 0;
+      const { temuAbsences, temuOfflineAbsences } = await getTemuAttendanceCounts(student.id);
 
-      const attendanceRate = computed.personal.breakdown.a1;
-      const isAttendanceFailed = attendanceRate !== null && attendanceRate < 70;
+      const dataInsufficient = temuAbsences > temuAbsenceThreshold && temuOfflineAbsences > temuOfflineAbsenceThreshold;
 
-      let recommendation = "LULUS";
-      if (isAttendanceFailed) {
-        recommendation = "TIDAK LULUS (kriteria minimum kehadiran belum terpenuhi)";
-      } else if (personalScore < 60 || skillScore < 60) {
-        recommendation = "LULUS DENGAN EVALUASI";
+      let recommendation: string;
+      let description: string | null;
+
+      if (dataInsufficient) {
+        recommendation = "Tidak Dapat Diagregasi";
+        description = dataInsufficientMessage;
+        dataInsufficientCount++;
+      } else {
+        const evaluated = evaluateRecommendation(computed, activeRules);
+        recommendation = evaluated.recommendation;
+        description = evaluated.description;
       }
+
+      const breakdown = { ...computed, temuAttendance: { temuAbsences, temuOfflineAbsences } };
 
       await prisma.raportSnapshot.upsert({
         where: { studentId: student.id },
-        update: { personalScore, skillScore, breakdown: computed, recommendation, finalizedByUserId: user.id, finalizedAt: new Date() },
-        create: { studentId: student.id, personalScore, skillScore, breakdown: computed, recommendation, finalizedByUserId: user.id },
+        update: { personalScore, skillScore, breakdown, recommendation, description, dataInsufficient, finalizedByUserId: user.id, finalizedAt: new Date() },
+        create: { studentId: student.id, personalScore, skillScore, breakdown, recommendation, description, dataInsufficient, finalizedByUserId: user.id },
       });
       finalizedCount++;
     }
@@ -496,9 +519,10 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
     revalidatePath("/admin/finalization");
     return {
       ok: true,
-      summary: `Finalisasi selesai: ${finalizedCount} maba dibekukan, ${skippedCount} maba dilewati (belum lolos verifikasi PSDM${damenEnabled ? "/Damen" : ""}).`,
+      summary: `Finalisasi selesai: ${finalizedCount} maba dibekukan (${dataInsufficientCount} di antaranya tidak dapat diagregasi karena kekurangan presensi Temu FTEIC), ${skippedCount} maba dilewati (belum lolos verifikasi PSDM${damenEnabled ? "/Damen" : ""}).`,
     };
   } catch (error) {
+    unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal melakukan finalisasi raport." };
   }
 }
