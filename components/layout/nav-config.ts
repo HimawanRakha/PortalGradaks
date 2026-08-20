@@ -69,6 +69,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
   ],
   [Role.ADMIN]: [
     { label: "Monitoring", href: "/admin", icon: Home, primary: true },
+    { label: "Tracking Unit", href: "/admin/unit-tracking", icon: BarChart3, primary: true },
     { label: "Master Data", href: "/admin/master-data", icon: Database, primary: true },
     { label: "Impor Data", href: "/admin/imports", icon: UploadCloud, primary: true },
     { label: "Pemeriksaan Akhir", href: "/admin/verification", icon: CheckSquare, primary: true },

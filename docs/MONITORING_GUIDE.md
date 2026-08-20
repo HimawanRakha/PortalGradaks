@@ -15,22 +15,45 @@ Portal ini sudah dilengkapi dengan fitur **Internal Active User Monitoring** di 
 
 ---
 
-## 2. Keamanan & Proteksi Traffic (Cloudflare WAF & Anti-DDoS)
+## 2. Keamanan & Proteksi Traffic (Vercel & Cloudflare)
 
-Untuk perlindungan tingkat jaringan (*network security*), pencegahan serangan DDoS, pemblokiran bot jahat, dan pemantauan lalu lintas IP:
+> [!NOTE]
+> **Domain `portal-gradaks.vercel.app`**:
+> Subdomain `*.vercel.app` secara otomatis sudah dilindungi oleh **Vercel Edge Network & Automatic DDoS Protection**.
+> Cloudflare DNS management khusus digunakan jika Anda menggunakan **Custom Domain** sendiri (misal `gradaks.id` atau `portal-maba.com`).
 
-### Langkah Setup Cloudflare (Gratis):
-1. **Daftar & Tambahkan Domain**:
-   * Buat akun di [Cloudflare Dashboard](https://dash.cloudflare.com/).
-   * Tambahkan domain website Portal Anda (misal `portal-maba.its.ac.id` atau domain kustom Anda).
-2. **Ubah Nameserver DNS**:
-   * Ubah Nameserver di penyedia domain Anda (Registrar) ke Nameserver yang diberikan oleh Cloudflare.
-3. **Aktifkan Proteksi Keamanan**:
-   * **Security Level**: Atur ke **Medium** atau **High** di menu *Security -> Settings*.
-   * **Bot Fight Mode**: Aktifkan di menu *Security -> Bots* untuk otomatis menghalangi bot jahat/scraper.
-   * **Rate Limiting Rule**: Tambahkan rule untuk membatasi request pada endpoint login (`/login` & `/api/auth/*`) max 10 request per menit per IP untuk mencegah *brute-force attack*.
-4. **Pantau Traffic Keamanan**:
-   * Buka tab **Security -> Events** di Cloudflare untuk melihat grafik percobaan peretasan, serangan yang diblokir, lokasi negara pengakses, dan IP mencurigakan.
+### A. Fitur Keamanan Bawaan Vercel (Untuk `portal-gradaks.vercel.app`):
+1. **DDoS Protection & Edge Network**: Otomatis aktif di seluruh deployment Vercel.
+2. **Vercel Web Analytics & Speed Insights**: Dapat diaktifkan 1-klik melalui *Vercel Dashboard -> Analytics*.
+3. **Vercel Firewall & Attack Challenge**: Dapat diatur pada *Vercel Dashboard -> Settings -> Security*.
+
+### B. Langkah Setup Cloudflare (Jika Menggunakan Custom Domain):
+
+1. **Tambahkan Domain di Vercel**:
+   * Buka [Vercel Dashboard](https://vercel.com/dashboard) -> Project PortalGradaks -> **Settings** -> **Domains**.
+   * Masukkan domain/subdomain Anda (misal `portal.domainanda.com`) dan klik **Add**.
+
+2. **Setup DNS Record di Cloudflare**:
+   * Login ke [Cloudflare Dashboard](https://dash.cloudflare.com/) -> Pilih Domain -> Menu **DNS** -> **Records**.
+   * Tambahkan record berikut:
+     * **Type**: `CNAME`
+     * **Name**: `@` (untuk root) atau `portal` (untuk subdomain)
+     * **Target**: `cname.vercel-dns.com`
+     * **Proxy Status**: **Proxied (Awan Oranye)**
+
+3. **Konfigurasi Enkripsi SSL/TLS (PENTING)**:
+   * Di Cloudflare, buka menu **SSL/TLS** -> **Overview**.
+   * Ubah Encryption Mode ke **Full (strict)** (atau **Full**).
+   * *Catatan*: **Jangan pilih Flexible**, karena akan menyebabkan error *Infinite Redirect (ERR_TOO_MANY_REDIRECTS)* dengan Vercel.
+   * Masuk ke **SSL/TLS** -> **Edge Certificates** -> Aktifkan **Always Use HTTPS** (ON).
+
+4. **Aktifkan Fitur Keamanan WAF & Anti-Bot**:
+   * **Bot Fight Mode**: Buka *Security -> Bots*, aktifkan **Bot Fight Mode** (ON).
+   * **Security Level**: Buka *Security -> Settings*, atur ke **Medium** atau **High**.
+   * **Rate Limiting (Proteksi Login)**: Buka *Security -> WAF -> Rate limiting rules*, buat rule untuk membatasi endpoint `/login` dan `/api/auth/*` max 10 request per menit per IP.
+
+5. **Verifikasi Status**:
+   * Kembali ke Vercel Domains tab. Pastikan status domain berubah menjadi **Valid Configuration** (Centang Hijau).
 
 ---
 

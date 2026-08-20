@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Users, BookOpenCheck, Flag, ShieldAlert, ArrowRight, Activity } from "lucide-react";
+import { Users, BookOpenCheck, Flag, ShieldAlert, ArrowRight, Activity, BarChart3 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
 import { Role, LogbookStatus, FlagStatus } from "@/app/generated/prisma/enums";
@@ -305,6 +305,28 @@ export default async function AdminHomePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Unit Tracking Banner */}
+      <Card className="bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-primary/20 shadow-sm">
+        <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <BarChart3 className="size-4 text-primary" />
+              Tracking Detail Presensi & Pengisian Nilai Per Unit
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Pantau secara spesifik unit mana saja yang belum mengisi presensi maba atau pengisian nilai per kegiatan secara mendalam.
+            </p>
+          </div>
+          <Link
+            href="/admin/unit-tracking"
+            className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground font-semibold px-4 py-2 rounded-md text-xs hover:bg-primary/90 transition-colors shadow-sm whitespace-nowrap"
+          >
+            Buka Tracking Unit
+            <ArrowRight className="size-3.5" />
+          </Link>
+        </CardContent>
+      </Card>
 
       {/* Regional Matrix */}
       <Card>
