@@ -17,8 +17,8 @@ async function requireMentor() {
 }
 
 async function assertStudentInMentorUnit(studentId: string, unitId: string) {
-  const student = await prisma.student.findUniqueOrThrow({ where: { id: studentId }, select: { unitId: true } });
-  if (student.unitId !== unitId) throw new ForbiddenError("Maba ini bukan bagian dari unit Anda.");
+  const student = await prisma.student.findUnique({ where: { id: studentId }, select: { unitId: true } });
+  if (!student || student.unitId !== unitId) throw new ForbiddenError("Maba ini tidak ditemukan atau bukan bagian dari unit Anda.");
 }
 
 const scoreValuesSchema = z.record(z.string(), z.number().nullable());
@@ -62,17 +62,20 @@ export async function saveAttendanceAction(
   try {
     const user = await requireMentor();
     const parsed = z.array(attendanceEntrySchema).parse(entries);
-    const submittedStudentIds = new Set(parsed.map((e) => e.id));
 
     // Fetch all student IDs in mentor's unit
     const unitStudents = await prisma.student.findMany({
       where: { unitId: user.unitId! },
       select: { id: true },
     });
-    const unitStudentIds = unitStudents.map((s) => s.id);
+    const unitStudentSet = new Set(unitStudents.map((s) => s.id));
+
+    // Keep only entries for students belonging to mentor's unit
+    const validEntries = parsed.filter((e) => unitStudentSet.has(e.id));
+    const submittedStudentIds = new Set(validEntries.map((e) => e.id));
 
     // Delete attendance records for unselected/undone students in this unit
-    const unselectedStudentIds = unitStudentIds.filter((id) => !submittedStudentIds.has(id));
+    const unselectedStudentIds = Array.from(unitStudentSet).filter((id) => !submittedStudentIds.has(id));
     if (unselectedStudentIds.length > 0) {
       await prisma.attendance.deleteMany({
         where: {
@@ -82,8 +85,7 @@ export async function saveAttendanceAction(
       });
     }
 
-    for (const entry of parsed) {
-      await assertStudentInMentorUnit(entry.id, user.unitId!);
+    for (const entry of validEntries) {
       await upsertAttendance({
         studentId: entry.id,
         sessionId,

@@ -57,16 +57,18 @@ export async function saveMentorAttendanceAction(
     if (!user.regionId) throw new ForbiddenError("Akun Anda belum ditautkan ke wilayah region mana pun.");
 
     const parsed = z.array(mentorAttendanceEntrySchema).parse(entries);
-    const submittedMentorIds = new Set(parsed.map((e) => e.id));
 
     const regionMentors = await prisma.user.findMany({
       where: { role: Role.MENTOR, unit: { regionId: user.regionId } },
       select: { id: true },
     });
-    const regionMentorIds = regionMentors.map((m) => m.id);
+    const regionMentorSet = new Set(regionMentors.map((m) => m.id));
+
+    const validEntries = parsed.filter((e) => regionMentorSet.has(e.id));
+    const submittedMentorIds = new Set(validEntries.map((e) => e.id));
 
     // Delete attendance records for unselected/undone mentors in this region
-    const unselectedMentorIds = regionMentorIds.filter((id) => !submittedMentorIds.has(id));
+    const unselectedMentorIds = Array.from(regionMentorSet).filter((id) => !submittedMentorIds.has(id));
     if (unselectedMentorIds.length > 0) {
       await prisma.mentorAttendance.deleteMany({
         where: {
@@ -76,17 +78,7 @@ export async function saveMentorAttendanceAction(
       });
     }
 
-    const mentorIds = Array.from(submittedMentorIds);
-    if (mentorIds.length > 0) {
-      const mentorsInRegion = await prisma.user.count({
-        where: { id: { in: mentorIds }, role: Role.MENTOR, unit: { regionId: user.regionId } },
-      });
-      if (mentorsInRegion !== mentorIds.length) {
-        return { ok: false, error: "Satu atau lebih mentor bukan bagian dari region Anda." };
-      }
-    }
-
-    for (const entry of parsed) {
+    for (const entry of validEntries) {
       await upsertMentorAttendance({
         mentorId: entry.id,
         sessionId,

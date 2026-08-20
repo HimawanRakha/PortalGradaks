@@ -25,6 +25,20 @@ const STATUS_OPTIONS: Array<{ value: AttendanceEntry["status"]; label: string }>
  * Server Action .bind() rather than an inline closure since a plain
  * function can't cross the server->client prop boundary.
  */
+function sanitizeEntries(
+  people: Person[],
+  rawEntries: Record<string, AttendanceEntry>
+): Record<string, AttendanceEntry> {
+  const validIds = new Set(people.map((p) => p.id));
+  const sanitized: Record<string, AttendanceEntry> = {};
+  for (const [id, entry] of Object.entries(rawEntries)) {
+    if (validIds.has(id)) {
+      sanitized[id] = entry;
+    }
+  }
+  return sanitized;
+}
+
 export function AttendanceGrid({
   people,
   draftKey,
@@ -39,45 +53,49 @@ export function AttendanceGrid({
   saveLabel?: string;
 }) {
   const [entries, setEntries] = useState<Record<string, AttendanceEntry>>(() => {
-    if (typeof window === "undefined") return initialEntries;
+    const base = sanitizeEntries(people, initialEntries);
+    if (typeof window === "undefined") return base;
     try {
       const saved = window.localStorage.getItem(draftKey);
       if (saved) {
-        return { ...initialEntries, ...JSON.parse(saved) };
+        return sanitizeEntries(people, { ...base, ...JSON.parse(saved) });
       }
     } catch (e) {
       console.warn("Failed to load attendance draft", e);
     }
-    return initialEntries;
+    return base;
   });
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    // When initialEntries changes (e.g. session switched), reset to server state + draft
+    // When initialEntries or people changes (e.g. session switched), reset to server state + draft
+    const base = sanitizeEntries(people, initialEntries);
     try {
       const saved = window.localStorage.getItem(draftKey);
       if (saved) {
-        setEntries({ ...initialEntries, ...JSON.parse(saved) });
+        setEntries(sanitizeEntries(people, { ...base, ...JSON.parse(saved) }));
         return;
       }
     } catch {}
-    setEntries(initialEntries);
-  }, [initialEntries, draftKey]);
+    setEntries(base);
+  }, [initialEntries, draftKey, people]);
 
   function update(id: string, patch: Partial<AttendanceEntry>) {
     setEntries((prev) => {
       const current = prev[id] ?? { status: "HADIR" as const, participationScore: null };
       const next = { ...prev, [id]: { ...current, ...patch } };
-      window.localStorage.setItem(draftKey, JSON.stringify(next));
-      return next;
+      const sanitized = sanitizeEntries(people, next);
+      window.localStorage.setItem(draftKey, JSON.stringify(sanitized));
+      return sanitized;
     });
   }
 
-  const filled = Object.keys(entries).length;
+  const validEntries = sanitizeEntries(people, entries);
+  const filled = Object.keys(validEntries).length;
 
   function submitAll() {
     startTransition(async () => {
-      const payload = Object.entries(entries).map(([id, entry]) => ({ id, ...entry }));
+      const payload = Object.entries(validEntries).map(([id, entry]) => ({ id, ...entry }));
       const result = await onSave(payload);
       if (result.ok) {
         window.localStorage.removeItem(draftKey);
