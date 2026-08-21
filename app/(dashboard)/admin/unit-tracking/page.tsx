@@ -14,7 +14,7 @@ export default async function AdminUnitTrackingPage() {
     where: { active: true },
     orderBy: { order: "asc" },
     include: {
-      sessions: { select: { id: true, code: true } },
+      sessions: { select: { id: true, code: true, name: true } },
       materials: {
         where: { active: true },
         include: {
@@ -32,14 +32,22 @@ export default async function AdminUnitTrackingPage() {
     select: { id: true, code: true, name: true },
   });
 
-  // Map activity code -> list of session IDs and list of parameter IDs
+  // Map activity code -> list of real sessions, session IDs and parameter IDs
   const activityMap = new Map<
     string,
-    { sessionIds: Set<string>; paramIds: Set<string>; totalParams: number }
+    {
+      realSessions: { id: string; code: string; name: string }[];
+      realSessionIds: Set<string>;
+      paramIds: Set<string>;
+      totalParams: number;
+    }
   >();
 
   for (const act of activities) {
-    const sessionIds = new Set(act.sessions.map((s) => s.id));
+    const realSessions = act.sessions
+      .filter((s) => s.code !== "UMUM")
+      .map((s) => ({ id: s.id, code: s.code, name: s.name }));
+    const realSessionIds = new Set(realSessions.map((s) => s.id));
     const paramIds = new Set<string>();
     for (const mat of act.materials) {
       for (const p of mat.parameters) {
@@ -47,7 +55,8 @@ export default async function AdminUnitTrackingPage() {
       }
     }
     activityMap.set(act.code, {
-      sessionIds,
+      realSessions,
+      realSessionIds,
       paramIds,
       totalParams: paramIds.size,
     });
@@ -94,12 +103,14 @@ export default async function AdminUnitTrackingPage() {
     // Precalculate activityMetrics structure
     for (const act of activities) {
       const info = activityMap.get(act.code)!;
+      const attTotalForAct = mabaCount * info.realSessions.length;
       activityMetrics[act.code] = {
         attendanceDoneCount: 0,
+        attendanceTotalCount: attTotalForAct,
         scoringDoneCount: 0,
         scoringTotalCount: info.totalParams * mabaCount,
       };
-      overallAttTotal += mabaCount;
+      overallAttTotal += attTotalForAct;
       overallScoreTotal += info.totalParams * mabaCount;
     }
 
@@ -112,18 +123,22 @@ export default async function AdminUnitTrackingPage() {
         const info = activityMap.get(act.code)!;
         totalParamsByActivity[act.code] = info.totalParams;
 
-        // Check attendance for this activity
-        const att = st.attendances.find((a) => info.sessionIds.has(a.sessionId));
-        if (att) {
-          attendanceByActivity[act.code] = {
-            status: att.status,
-            participationScore: att.participationScore,
+        // Collect attendance status for all real sessions in this activity
+        const sessionAtts = info.realSessions.map((s) => {
+          const att = st.attendances.find((a) => a.sessionId === s.id);
+          if (att) {
+            activityMetrics[act.code].attendanceDoneCount += 1;
+            overallAttDone += 1;
+          }
+          return {
+            sessionId: s.id,
+            sessionCode: s.code,
+            sessionName: s.name,
+            status: att?.status || null,
+            participationScore: att?.participationScore ?? null,
           };
-          activityMetrics[act.code].attendanceDoneCount += 1;
-          overallAttDone += 1;
-        } else {
-          attendanceByActivity[act.code] = null;
-        }
+        });
+        attendanceByActivity[act.code] = sessionAtts;
 
         // Count scores entered for parameters in this activity
         const scoredParams = st.scores.filter((sc) => info.paramIds.has(sc.parameterId)).length;
@@ -176,7 +191,15 @@ export default async function AdminUnitTrackingPage() {
       </div>
 
       <UnitTrackingMatrix
-        activities={activities.map((a) => ({ id: a.id, code: a.code, name: a.name }))}
+        activities={activities.map((a) => {
+          const info = activityMap.get(a.code)!;
+          return {
+            id: a.id,
+            code: a.code,
+            name: a.name,
+            sessions: info.realSessions,
+          };
+        })}
         regions={regions}
         units={processedUnits}
         defaultActivityCode={defaultActivityCode}

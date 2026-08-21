@@ -8,11 +8,19 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
+export type SessionAttendanceInfo = {
+  sessionId: string;
+  sessionCode: string;
+  sessionName: string;
+  status: string | null;
+  participationScore: number | null;
+};
+
 export type StudentTrackingInfo = {
   id: string;
   name: string;
   nrp: string;
-  attendanceByActivity: Record<string, { status: string; participationScore: number | null } | null>;
+  attendanceByActivity: Record<string, SessionAttendanceInfo[]>;
   scoresCountByActivity: Record<string, number>;
   totalParamsByActivity: Record<string, number>;
   unverifiedLogbooks: number;
@@ -32,9 +40,10 @@ export type UnitTrackingItem = {
   activityMetrics: Record<
     string,
     {
-      attendanceDoneCount: number; // how many students have an attendance entry
-      scoringDoneCount: number;    // sum of scored parameters across all students in unit
-      scoringTotalCount: number;   // active parameters count * maba count
+      attendanceDoneCount: number;
+      attendanceTotalCount: number;
+      scoringDoneCount: number;
+      scoringTotalCount: number;
     }
   >;
   overallMetrics: {
@@ -45,7 +54,12 @@ export type UnitTrackingItem = {
   };
 };
 
-export type ActivityOption = { id: string; code: string; name: string };
+export type ActivityOption = {
+  id: string;
+  code: string;
+  name: string;
+  sessions: { id: string; code: string; name: string }[];
+};
 export type RegionOption = { id: string; code: string; name: string };
 
 export function UnitTrackingMatrix({
@@ -90,7 +104,7 @@ export function UnitTrackingMatrix({
     } else {
       const metric = unit.activityMetrics[selectedActivity];
       if (metric) {
-        attPct = unit.mabaCount > 0 ? (metric.attendanceDoneCount / unit.mabaCount) * 100 : 0;
+        attPct = metric.attendanceTotalCount > 0 ? (metric.attendanceDoneCount / metric.attendanceTotalCount) * 100 : 0;
         scorePct = metric.scoringTotalCount > 0 ? (metric.scoringDoneCount / metric.scoringTotalCount) * 100 : 0;
       }
     }
@@ -124,7 +138,7 @@ export function UnitTrackingMatrix({
       const metric = unit.activityMetrics[selectedActivity];
       if (metric) {
         nationalAttDone += metric.attendanceDoneCount;
-        nationalAttTotal += unit.mabaCount;
+        nationalAttTotal += metric.attendanceTotalCount;
         nationalScoreDone += metric.scoringDoneCount;
         nationalScoreTotal += metric.scoringTotalCount;
       }
@@ -304,7 +318,7 @@ export function UnitTrackingMatrix({
                   filteredUnits.map((unit) => {
                     // Calculate metrics for this specific unit
                     let attDone = 0;
-                    let attTotal = unit.mabaCount;
+                    let attTotal = 0;
                     let scoreDone = 0;
                     let scoreTotal = 0;
 
@@ -317,7 +331,7 @@ export function UnitTrackingMatrix({
                       const metric = unit.activityMetrics[selectedActivity];
                       if (metric) {
                         attDone = metric.attendanceDoneCount;
-                        attTotal = unit.mabaCount;
+                        attTotal = metric.attendanceTotalCount;
                         scoreDone = metric.scoringDoneCount;
                         scoreTotal = metric.scoringTotalCount;
                       }
@@ -369,7 +383,7 @@ export function UnitTrackingMatrix({
                           <td className="p-3">
                             <div className="space-y-1">
                               <div className="flex justify-between text-[10px] font-mono">
-                                <span className="text-muted-foreground">{attDone}/{attTotal} maba</span>
+                                <span className="text-muted-foreground">{attDone}/{attTotal} presensi</span>
                                 <span className="font-bold">{attPct}%</span>
                               </div>
                               <Progress value={attPct} className="h-1.5" />
@@ -434,21 +448,21 @@ export function UnitTrackingMatrix({
                                       </thead>
                                       <tbody className="divide-y">
                                         {unit.students.map((st) => {
-                                          let attInfo: { status: string; participationScore: number | null } | null = null;
+                                          let sessionAtts: SessionAttendanceInfo[] = [];
                                           let scoredCount = 0;
                                           let totalParams = 0;
 
                                           if (selectedActivity === "ALL") {
-                                            // Aggregate count of recorded attendances & scores across all activities
-                                            const attDoneCount = Object.values(st.attendanceByActivity).filter(Boolean).length;
-                                            attInfo = attDoneCount > 0 ? { status: `${attDoneCount} sesi`, participationScore: null } : null;
+                                            sessionAtts = Object.values(st.attendanceByActivity).flat();
                                             scoredCount = Object.values(st.scoresCountByActivity).reduce((a, b) => a + b, 0);
                                             totalParams = Object.values(st.totalParamsByActivity).reduce((a, b) => a + b, 0);
                                           } else {
-                                            attInfo = st.attendanceByActivity[selectedActivity] || null;
+                                            sessionAtts = st.attendanceByActivity[selectedActivity] || [];
                                             scoredCount = st.scoresCountByActivity[selectedActivity] || 0;
                                             totalParams = st.totalParamsByActivity[selectedActivity] || 0;
                                           }
+
+                                          const filledAttCount = sessionAtts.filter((s) => s.status !== null).length;
 
                                           return (
                                             <tr key={st.id} className="hover:bg-muted/20">
@@ -457,32 +471,96 @@ export function UnitTrackingMatrix({
                                                 <p className="text-[10px] text-muted-foreground font-mono">{st.nrp}</p>
                                               </td>
                                               <td className="p-2">
-                                                {attInfo ? (
+                                                {selectedActivity === "ALL" ? (
                                                   <span
                                                     className={cn(
                                                       "px-2 py-0.5 rounded font-bold text-[10px] border",
-                                                      attInfo.status === "HADIR"
+                                                      filledAttCount >= sessionAtts.length && sessionAtts.length > 0
                                                         ? "bg-green-500/10 text-green-600 border-green-500/20"
-                                                        : attInfo.status === "IZIN"
+                                                        : filledAttCount > 0
                                                         ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
-                                                        : attInfo.status === "ALPA"
-                                                        ? "bg-destructive/10 text-destructive border-destructive/20"
                                                         : "bg-muted text-muted-foreground border-border"
                                                     )}
                                                   >
-                                                    {attInfo.status}
+                                                    {filledAttCount} / {sessionAtts.length} sesi
                                                   </span>
+                                                ) : sessionAtts.length === 0 ? (
+                                                  <span className="text-muted-foreground text-[10px] italic">Tidak ada sesi</span>
+                                                ) : sessionAtts.length === 1 ? (
+                                                  sessionAtts[0].status ? (
+                                                    <span
+                                                      className={cn(
+                                                        "px-2 py-0.5 rounded font-bold text-[10px] border",
+                                                        sessionAtts[0].status === "HADIR"
+                                                          ? "bg-green-500/10 text-green-600 border-green-500/20"
+                                                          : sessionAtts[0].status === "IZIN"
+                                                          ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                                          : sessionAtts[0].status === "ALPA"
+                                                          ? "bg-destructive/10 text-destructive border-destructive/20"
+                                                          : "bg-muted text-muted-foreground border-border"
+                                                      )}
+                                                    >
+                                                      {sessionAtts[0].status}
+                                                    </span>
+                                                  ) : (
+                                                    <span className="text-muted-foreground text-[10px] italic">Belum Diisi</span>
+                                                  )
                                                 ) : (
-                                                  <span className="text-muted-foreground text-[10px] italic">Belum Diisi</span>
+                                                  <div className="flex flex-wrap items-center gap-1.5">
+                                                    {sessionAtts.map((s) => (
+                                                      <div key={s.sessionId} className="flex items-center gap-1">
+                                                        <span className="text-[10px] font-mono font-medium text-muted-foreground">
+                                                          {s.sessionCode}:
+                                                        </span>
+                                                        {s.status ? (
+                                                          <span
+                                                            className={cn(
+                                                              "px-1.5 py-0.5 rounded font-bold text-[10px] border",
+                                                              s.status === "HADIR"
+                                                                ? "bg-green-500/10 text-green-600 border-green-500/20"
+                                                                : s.status === "IZIN"
+                                                                ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                                                                : s.status === "ALPA"
+                                                                ? "bg-destructive/10 text-destructive border-destructive/20"
+                                                                : "bg-muted text-muted-foreground border-border"
+                                                            )}
+                                                          >
+                                                            {s.status}
+                                                          </span>
+                                                        ) : (
+                                                          <span className="text-muted-foreground text-[10px] italic">Belum</span>
+                                                        )}
+                                                      </div>
+                                                    ))}
+                                                  </div>
                                                 )}
                                               </td>
                                               <td className="p-2 font-mono text-[10px]">
-                                                {attInfo?.participationScore ? (
-                                                  <span className="bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded">
-                                                    Skor: {attInfo.participationScore}
-                                                  </span>
-                                                ) : (
+                                                {selectedActivity === "ALL" ? (
                                                   "-"
+                                                ) : sessionAtts.length === 1 ? (
+                                                  sessionAtts[0].participationScore ? (
+                                                    <span className="bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded">
+                                                      Skor: {sessionAtts[0].participationScore}
+                                                    </span>
+                                                  ) : (
+                                                    "-"
+                                                  )
+                                                ) : (
+                                                  <div className="flex flex-wrap items-center gap-1.5">
+                                                    {sessionAtts.map((s) => (
+                                                      <span key={s.sessionId} className="text-[10px]">
+                                                        <span className="text-muted-foreground">{s.sessionCode}: </span>
+                                                        {s.participationScore ? (
+                                                          <span className="bg-primary/10 text-primary font-bold px-1 py-0.5 rounded">
+                                                            {s.participationScore}
+                                                          </span>
+                                                        ) : (
+                                                          "-"
+                                                        )}
+                                                      </span>
+                                                    ))}
+                                                  </div>
                                                 )}
                                               </td>
                                               <td className="p-2 font-mono text-[10px]">
