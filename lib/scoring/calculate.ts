@@ -197,7 +197,7 @@ export async function computeScores(studentId: string): Promise<ComputedScores> 
     personalItems.push({
       label: `Kehadiran Sesi (${sessionCode})`,
       refCode: "ATTENDANCE",
-      rawValue: attendance.status === "HADIR" ? base : attendance.status === "IZIN" ? 2 : 0,
+      rawValue: attendance.status === "HADIR" ? (attendance.participationScore ?? 4) : attendance.status === "IZIN" ? 2 : 0,
       maxValue: 4,
       normalizedValue: attendance.status === "HADIR" ? 100 : attendance.status === "IZIN" ? 50 : 0,
       weight: 0,
