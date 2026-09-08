@@ -514,6 +514,7 @@ export async function createUserAction(data: {
   name: string;
   role: Role;
   password?: string;
+  phone?: string | null;
   departmentId?: string | null;
   regionId?: string | null;
   unitId?: string | null;
@@ -532,6 +533,7 @@ export async function createUserAction(data: {
         name: data.name.trim(),
         role: data.role,
         passwordHash,
+        phone: data.phone?.trim() || null,
         departmentId: data.departmentId || null,
         regionId: data.regionId || null,
         unitId: data.unitId || null,
@@ -552,6 +554,7 @@ export async function updateUserAction(
     name: string;
     role: Role;
     password?: string;
+    phone?: string | null;
     departmentId?: string | null;
     regionId?: string | null;
     unitId?: string | null;
@@ -569,6 +572,7 @@ export async function updateUserAction(
         nrp: nrpClean,
         name: data.name.trim(),
         role: data.role,
+        phone: data.phone?.trim() || null,
         departmentId: data.departmentId || null,
         regionId: data.regionId || null,
         unitId: data.unitId || null,

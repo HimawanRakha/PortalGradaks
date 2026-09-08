@@ -28,6 +28,7 @@ type UserData = {
   nrp: string | null;
   name: string;
   role: Role;
+  phone: string | null;
   active: boolean;
   region: { id: string; code: string; name: string } | null;
   unit: { id: string; code: string; name: string } | null;
@@ -74,6 +75,7 @@ export function AccountsManager({
   const [name, setName] = useState("");
   const [role, setRole] = useState<Role>(Role.MENTOR);
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [regionId, setRegionId] = useState<string>("");
   const [unitId, setUnitId] = useState<string>("");
   const [departmentId, setDepartmentId] = useState<string>("");
@@ -86,6 +88,7 @@ export function AccountsManager({
       setName(user.name);
       setRole(user.role);
       setPassword("");
+      setPhone(user.phone || "");
       setRegionId(user.region?.id || "");
       setUnitId(user.unit?.id || "");
       setDepartmentId(user.department?.id || "");
@@ -96,6 +99,7 @@ export function AccountsManager({
       setName("");
       setRole(Role.MENTOR);
       setPassword("");
+      setPhone("");
       setRegionId("");
       setUnitId("");
       setDepartmentId("");
@@ -122,6 +126,7 @@ export function AccountsManager({
         name,
         role,
         password: password || undefined,
+        phone: phone || null,
         departmentId: departmentId || null,
         regionId: role === Role.KEPALA_REGION ? regionId || null : null,
         unitId: role === Role.MENTOR ? unitId || null : null,
@@ -288,6 +293,11 @@ export function AccountsManager({
             <div className="grid gap-1">
               <Label htmlFor="user-pass">Password {editId && "(Kosongkan jika tidak ingin diubah)"}</Label>
               <Input id="user-pass" type="password" placeholder={editId ? "••••••••" : "Minimal 6 karakter"} value={password} onChange={(e) => setPassword(e.target.value)} className="h-8" />
+            </div>
+            <div className="grid gap-1">
+              <Label htmlFor="user-phone">No. WhatsApp (Opsional)</Label>
+              <Input id="user-phone" placeholder="08xxxxxxxxxx" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-8" />
+              <span className="text-[10px] text-muted-foreground">Dipakai untuk reminder pengisian nilai via WhatsApp (khusus Mentor).</span>
             </div>
 
             {departments && departments.length > 0 && (

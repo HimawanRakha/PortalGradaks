@@ -1,12 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Filter, ChevronDown, ChevronRight, CheckCircle2, Clock, AlertCircle, Users, BarChart3, Calendar } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useState, useTransition } from "react";
+import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
+import { id as idLocale } from "date-fns/locale";
+import {
+  Search,
+  Filter,
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Users,
+  BarChart3,
+  Calendar,
+  Send,
+  BellRing,
+  Loader2,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { sendUnitReminderAction, sendBulkIncompleteRemindersAction } from "@/app/(dashboard)/admin/unit-tracking/actions";
 
 export type SessionAttendanceInfo = {
   sessionId: string;
@@ -35,6 +54,8 @@ export type UnitTrackingItem = {
   regionName: string;
   mentorName: string | null;
   mentorNrp: string | null;
+  mentorPhone: string | null;
+  lastReminder: { status: string; at: string } | null;
   mabaCount: number;
   students: StudentTrackingInfo[];
   activityMetrics: Record<
@@ -78,6 +99,30 @@ export function UnitTrackingMatrix({
   const [statusFilter, setStatusFilter] = useState<"ALL" | "COMPLETE" | "IN_PROGRESS" | "NOT_STARTED">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null);
+
+  const [isPending, startTransition] = useTransition();
+  const [sendingUnitId, setSendingUnitId] = useState<string | null>(null);
+  const [bulkSending, setBulkSending] = useState(false);
+
+  const handleSendReminder = (unitId: string) => {
+    setSendingUnitId(unitId);
+    startTransition(async () => {
+      const res = await sendUnitReminderAction(unitId);
+      if (res.ok) toast.success(res.summary || "Reminder terkirim.");
+      else toast.error(res.error);
+      setSendingUnitId(null);
+    });
+  };
+
+  const handleSendBulkReminders = () => {
+    setBulkSending(true);
+    startTransition(async () => {
+      const res = await sendBulkIncompleteRemindersAction();
+      if (res.ok) toast.success(res.summary || "Reminder massal terkirim.");
+      else toast.error(res.error);
+      setBulkSending(false);
+    });
+  };
 
   // Filter units based on region, search query, and calculated status
   const filteredUnits = units.filter((unit) => {
@@ -208,7 +253,10 @@ export function UnitTrackingMatrix({
               </div>
 
               {/* Status Select */}
-              <Select value={statusFilter} onValueChange={(val: any) => setStatusFilter(val)}>
+              <Select
+                value={statusFilter}
+                onValueChange={(val: "ALL" | "COMPLETE" | "IN_PROGRESS" | "NOT_STARTED" | null) => setStatusFilter(val || "ALL")}
+              >
                 <SelectTrigger className="w-36 h-8 text-xs bg-background">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -286,11 +334,17 @@ export function UnitTrackingMatrix({
       {/* Main Units Table */}
       <Card>
         <CardHeader className="py-3.5 px-4 border-b">
-          <CardTitle className="text-sm font-semibold flex items-center justify-between">
+          <CardTitle className="text-sm font-semibold flex flex-wrap items-center justify-between gap-2">
             <span>Daftar Unit & Progress Pengisian</span>
-            <span className="text-xs font-normal text-muted-foreground">
-              Menampilkan {filteredUnits.length} dari {units.length} unit
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-normal text-muted-foreground">
+                Menampilkan {filteredUnits.length} dari {units.length} unit
+              </span>
+              <Button size="xs" variant="outline" disabled={isPending} onClick={handleSendBulkReminders}>
+                {bulkSending ? <Loader2 className="size-3 animate-spin" /> : <BellRing className="size-3" />}
+                Ingatkan Semua yang Belum Lengkap
+              </Button>
+            </div>
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -371,6 +425,12 @@ export function UnitTrackingMatrix({
                                   Mentor: <span className="font-medium text-foreground">{unit.mentorName || "Belum ditugaskan"}</span>
                                   {unit.mentorNrp ? ` (${unit.mentorNrp})` : ""}
                                 </p>
+                                {unit.lastReminder ? (
+                                  <p className="text-[10px] text-muted-foreground">
+                                    Reminder terakhir: {formatDistanceToNow(new Date(unit.lastReminder.at), { addSuffix: true, locale: idLocale })}
+                                    {unit.lastReminder.status === "FAILED" ? " (gagal terkirim)" : ""}
+                                  </p>
+                                ) : null}
                               </div>
                             </div>
                           </td>
@@ -401,19 +461,39 @@ export function UnitTrackingMatrix({
                             </div>
                           </td>
                           <td className="p-3 text-center">
-                            {isComplete ? (
-                              <span className="inline-flex items-center gap-1 bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                <CheckCircle2 className="size-3" /> Lengkap
-                              </span>
-                            ) : isNotStarted ? (
-                              <span className="inline-flex items-center gap-1 bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                <AlertCircle className="size-3" /> Belum
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                <Clock className="size-3" /> Proses
-                              </span>
-                            )}
+                            <div className="flex flex-col items-center gap-1.5">
+                              {isComplete ? (
+                                <span className="inline-flex items-center gap-1 bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                  <CheckCircle2 className="size-3" /> Lengkap
+                                </span>
+                              ) : isNotStarted ? (
+                                <span className="inline-flex items-center gap-1 bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                  <AlertCircle className="size-3" /> Belum
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                  <Clock className="size-3" /> Proses
+                                </span>
+                              )}
+                              {!isComplete ? (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  disabled={isPending}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendReminder(unit.id);
+                                  }}
+                                >
+                                  {isPending && sendingUnitId === unit.id ? (
+                                    <Loader2 className="size-3 animate-spin" />
+                                  ) : (
+                                    <Send className="size-3" />
+                                  )}
+                                  Kirim Reminder
+                                </Button>
+                              ) : null}
+                            </div>
                           </td>
                         </tr>
 

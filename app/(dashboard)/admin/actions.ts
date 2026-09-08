@@ -90,6 +90,10 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
   const regionCode = dataMap["region_code"]?.trim();
   const departmentCode = dataMap["department_code"]?.trim();
   const password = dataMap["password"];
+  // Optional — re-uploading the same ACCOUNTS csv with a phone column added
+  // is the bulk way to fill in mentor WA numbers (see lib/whatsapp/fonnte.ts).
+  // Blank cells never overwrite a phone already on file (see below).
+  const phoneRaw = dataMap["phone"]?.trim();
 
   if (!name || !roleRaw || !VALID_ROLES.has(roleRaw)) {
     return { action: ImportRowAction.FAILED, errorReason: `Kolom role harus salah satu dari ${Array.from(VALID_ROLES).join(", ")}.` };
@@ -146,15 +150,17 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
     if (password && password.trim() !== "") {
       passwordHash = await bcrypt.hash(password, 12);
     }
+    const phone = phoneRaw ? phoneRaw : existingUser.phone;
     await prisma.user.update({
       where: { id: existingUser.id },
-      data: { nrp, name, role: roleRaw as Role, passwordHash, unitId, regionId, departmentId },
+      data: { nrp, name, role: roleRaw as Role, passwordHash, phone, unitId, regionId, departmentId },
     });
     return {
       action: ImportRowAction.UPDATED,
       previousValueSnapshot: {
         name: existingUser.name,
         role: existingUser.role,
+        phone: existingUser.phone,
         unitId: existingUser.unitId,
         regionId: existingUser.regionId,
         departmentId: existingUser.departmentId,
@@ -166,7 +172,7 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
   // Note: matchedStudentId is deliberately left unset — this row creates a
   // User, not a Student, so ImportRow's Student FK doesn't apply here.
   await prisma.user.create({
-    data: { nrp, name, role: roleRaw as Role, passwordHash, unitId, regionId, departmentId },
+    data: { nrp, name, role: roleRaw as Role, passwordHash, phone: phoneRaw || null, unitId, regionId, departmentId },
   });
   return { action: ImportRowAction.CREATED };
 }

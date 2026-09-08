@@ -19,9 +19,10 @@ const SCHEMAS: Record<ImportType, { title: string; cols: string[]; desc: string;
   },
   [ImportType.ACCOUNTS]: {
     title: "Daftar Akun (Mentor/KR/Damen)",
-    cols: ["nrp", "name", "role", "unit_code", "region_code", "department_code", "password"],
-    desc: "Membuat atau memperbarui akun. role = ADMIN/KEPALA_REGION/MENTOR/DAMEN. Khusus Mentor, nrp & department_code bersifat opsional. Tidak menimpa password jika dikosongkan pada akun lama.",
-    sample: "nrp,name,role,unit_code,region_code,department_code,password\n,Budi Mentor,MENTOR,R01-U01,,DEP01,gradaks2026\n5025211001,Siti Mentor,MENTOR,R01-U02,,DEP02,gradaks2026",
+    cols: ["nrp", "name", "role", "unit_code", "region_code", "department_code", "password", "phone"],
+    desc: "Membuat atau memperbarui akun. role = ADMIN/KEPALA_REGION/MENTOR/DAMEN. Khusus Mentor, nrp & department_code bersifat opsional. Tidak menimpa password atau phone jika dikosongkan pada akun lama — jadi bisa dipakai untuk isi nomor WA mentor secara massal tanpa mengulang isi kolom lain.",
+    sample:
+      "nrp,name,role,unit_code,region_code,department_code,password,phone\n,Budi Mentor,MENTOR,R01-U01,,DEP01,gradaks2026,081234567890\n5025211001,Siti Mentor,MENTOR,R01-U02,,DEP02,gradaks2026,081298765432",
   },
   [ImportType.PERSONALITY]: {
     title: "Profil Kepribadian (MBTI)",

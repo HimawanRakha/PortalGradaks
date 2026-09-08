@@ -117,6 +117,16 @@ enum AuditAction {
   TRANSFER
 }
 
+enum ReminderTrigger {
+  MANUAL
+  AUTOMATIC
+}
+
+enum ReminderStatus {
+  SENT
+  FAILED
+}
+
 enum ScoreSource {
   MENTOR
   IMPORT
@@ -169,6 +179,7 @@ model Unit {
   confirmations Confirmation[]
   flags         Flag[]
   eventScores   UnitEventScore[]
+  reminderLogs  ReminderLog[]
 
   @@index([regionId])
   @@map("units")
@@ -180,6 +191,11 @@ model User {
   name         String
   passwordHash String
   role         Role
+  /// WhatsApp contact number (any format — normalized at send time), used to
+  /// deliver mentor reminders. Nullable/generic on User rather than
+  /// Mentor-only: only mentors are reminded today, but nothing else about
+  /// this field is mentor-specific. See lib/whatsapp/fonnte.ts.
+  phone        String?
   department   Department? @relation(fields: [departmentId], references: [id])
   departmentId String?
   region       Region?     @relation(fields: [regionId], references: [id])
@@ -205,6 +221,8 @@ model User {
   auditLogs                AuditLog[]
   mentorAttendances        MentorAttendance[] @relation("MentorAttendanceOf")
   enteredMentorAttendances MentorAttendance[] @relation("MentorAttendanceEnteredBy")
+  remindersReceived        ReminderLog[]      @relation("ReminderLogMentor")
+  remindersSent            ReminderLog[]      @relation("ReminderLogTriggeredBy")
 
   @@index([regionId])
   @@index([departmentId])
@@ -793,6 +811,35 @@ model AuditLog {
 
   @@index([entityType, entityId])
   @@map("audit_logs")
+}
+
+/// One row per WhatsApp reminder attempt (success or failure) nudging a
+/// unit's mentor to finish attendance/scoring input. Deliberately its own
+/// table rather than folded into AuditLog: AuditAction's CREATE/UPDATE/
+/// TRANSFER vocabulary doesn't model "a message was sent," and this is the
+/// cooldown source for the automatic cron (see lib/reminder/service.ts) —
+/// "already reminded in the last N hours" is answered by querying this
+/// table directly instead of a separate lastRemindedAt column to keep in
+/// sync. mentorId/phoneSnapshot are nullable so a failed attempt (no mentor
+/// assigned, or mentor has no phone on file) is still logged with a reason,
+/// visible to whoever's auditing why a unit was never reminded.
+model ReminderLog {
+  id                String          @id @default(cuid())
+  unit              Unit            @relation(fields: [unitId], references: [id])
+  unitId            String
+  mentor            User?           @relation("ReminderLogMentor", fields: [mentorId], references: [id])
+  mentorId          String?
+  phoneSnapshot     String?
+  message           String          @db.Text
+  status            ReminderStatus
+  errorReason       String?
+  trigger           ReminderTrigger
+  triggeredBy       User?           @relation("ReminderLogTriggeredBy", fields: [triggeredByUserId], references: [id])
+  triggeredByUserId String?
+  createdAt         DateTime        @default(now())
+
+  @@index([unitId, createdAt])
+  @@map("reminder_logs")
 }
 
 /// Key-value config: calc weights (logbook/K1/K2 contributions), the

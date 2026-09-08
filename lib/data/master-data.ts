@@ -109,7 +109,13 @@ export async function getAllAccounts(role?: Role) {
   return prisma.user.findMany({
     where: role ? { role } : undefined,
     orderBy: [{ role: "asc" }, { name: "asc" }],
-    include: {
+    select: {
+      id: true,
+      nrp: true,
+      name: true,
+      role: true,
+      phone: true,
+      active: true,
       region: { select: { id: true, code: true, name: true } },
       unit: { select: { id: true, code: true, name: true } },
       department: { select: { id: true, code: true, name: true } },

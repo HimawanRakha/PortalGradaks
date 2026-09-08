@@ -62,12 +62,24 @@ export default async function AdminUnitTrackingPage() {
     });
   }
 
+  // 1b. Latest reminder attempt per unit, for the "terakhir diingatkan" caption
+  const reminderLogs = await prisma.reminderLog.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { unitId: true, status: true, createdAt: true },
+  });
+  const lastReminderByUnit = new Map<string, { status: string; at: string }>();
+  for (const log of reminderLogs) {
+    if (!lastReminderByUnit.has(log.unitId)) {
+      lastReminderByUnit.set(log.unitId, { status: log.status, at: log.createdAt.toISOString() });
+    }
+  }
+
   // 2. Fetch all units with mentor and students
   const unitsData = await prisma.unit.findMany({
     orderBy: { code: "asc" },
     include: {
       region: { select: { id: true, code: true, name: true } },
-      mentor: { select: { name: true, nrp: true } },
+      mentor: { select: { name: true, nrp: true, phone: true } },
       students: {
         where: { active: true },
         select: {
@@ -167,6 +179,8 @@ export default async function AdminUnitTrackingPage() {
       regionName: unit.region.name,
       mentorName: unit.mentor?.name || null,
       mentorNrp: unit.mentor?.nrp || null,
+      mentorPhone: unit.mentor?.phone || null,
+      lastReminder: lastReminderByUnit.get(unit.id) || null,
       mabaCount,
       students: processedStudents,
       activityMetrics,
