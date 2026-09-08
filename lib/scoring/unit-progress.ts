@@ -25,8 +25,8 @@ export type UnitProgress = {
  * (components/admin/unit-tracking-matrix.tsx) uses to badge a unit
  * Lengkap/Proses/Belum: attendance AND scoring both effectively 100%,
  * scoring exempted when a unit has zero scoreable parameters. Used by the
- * reminder feature (manual button, bulk send, and the automatic cron) so
- * "belum lengkap" never drifts from what admin already sees on that page.
+ * reminder feature (single-unit button and the bulk "Ingatkan Semua" send)
+ * so "belum lengkap" never drifts from what admin already sees on that page.
  *
  * This intentionally only computes the "ALL activities" aggregate, not the
  * per-activity breakdown that page also shows — reminders nudge a mentor

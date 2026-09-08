@@ -13,8 +13,9 @@ export type ReminderResult = { ok: true } | { ok: false; error: string };
  * abuse detection weighs send velocity heavily, so firing a whole batch of
  * near-identical messages back-to-back is one of the more avoidable ways to
  * get the underlying number flagged/banned. Callers looping over multiple
- * units (bulk send, cron) should await `sleep(REMINDER_SEND_DELAY_MS)`
- * between iterations — a single manual send never needs this.
+ * units (e.g. the "Ingatkan Semua" bulk send) should await
+ * `sleep(REMINDER_SEND_DELAY_MS)` between iterations — a single manual send
+ * never needs this.
  */
 export const REMINDER_SEND_DELAY_MS = 300;
 export function sleep(ms: number): Promise<void> {
@@ -36,8 +37,8 @@ async function getMessageTemplate(): Promise<string> {
 
 /**
  * Core send+log logic for one already-fetched UnitProgress row. Callers
- * that already hold a full getUnitProgressList() result (the bulk action,
- * the cron) should call this directly instead of sendUnitReminderById, so a
+ * that already hold a full getUnitProgressList() result (the bulk send
+ * action) should call this directly instead of sendUnitReminderById, so a
  * loop over N units never re-fetches the whole unit list N times.
  */
 export async function sendReminderForUnitProgress(

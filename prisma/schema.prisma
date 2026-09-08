@@ -814,15 +814,13 @@ model AuditLog {
 }
 
 /// One row per WhatsApp reminder attempt (success or failure) nudging a
-/// unit's mentor to finish attendance/scoring input. Deliberately its own
-/// table rather than folded into AuditLog: AuditAction's CREATE/UPDATE/
-/// TRANSFER vocabulary doesn't model "a message was sent," and this is the
-/// cooldown source for the automatic cron (see lib/reminder/service.ts) —
-/// "already reminded in the last N hours" is answered by querying this
-/// table directly instead of a separate lastRemindedAt column to keep in
-/// sync. mentorId/phoneSnapshot are nullable so a failed attempt (no mentor
-/// assigned, or mentor has no phone on file) is still logged with a reason,
-/// visible to whoever's auditing why a unit was never reminded.
+/// unit's mentor to finish attendance/scoring input — sent manually from
+/// the Tracking Unit page (single-unit button or bulk "Ingatkan Semua").
+/// Deliberately its own table rather than folded into AuditLog:
+/// AuditAction's CREATE/UPDATE/TRANSFER vocabulary doesn't model "a message
+/// was sent." mentorId/phoneSnapshot are nullable so a failed attempt (no
+/// mentor assigned, or mentor has no phone on file) is still logged with a
+/// reason, visible to whoever's auditing why a unit was never reminded.
 model ReminderLog {
   id                String          @id @default(cuid())
   unit              Unit            @relation(fields: [unitId], references: [id])
