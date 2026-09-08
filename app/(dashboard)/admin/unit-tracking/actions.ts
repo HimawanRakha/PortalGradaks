@@ -5,7 +5,7 @@ import { unstable_rethrow } from "next/navigation";
 import { assertRole } from "@/lib/auth/dal";
 import { Role } from "@/app/generated/prisma/enums";
 import { getUnitProgressList } from "@/lib/scoring/unit-progress";
-import { sendReminderForUnitProgress, sendUnitReminderById } from "@/lib/reminder/service";
+import { sendReminderForUnitProgress, sendUnitReminderById, sleep, REMINDER_SEND_DELAY_MS } from "@/lib/reminder/service";
 
 type ActionResult = { ok: true; summary?: string } | { ok: false; error: string };
 
@@ -34,8 +34,9 @@ export async function sendBulkIncompleteRemindersAction(): Promise<ActionResult>
 
     let sent = 0;
     let failed = 0;
-    for (const unit of incomplete) {
-      const result = await sendReminderForUnitProgress(unit, "MANUAL", user.id);
+    for (let i = 0; i < incomplete.length; i++) {
+      if (i > 0) await sleep(REMINDER_SEND_DELAY_MS); // pace sends — see comment on REMINDER_SEND_DELAY_MS
+      const result = await sendReminderForUnitProgress(incomplete[i], "MANUAL", user.id);
       if (result.ok) sent++;
       else failed++;
     }

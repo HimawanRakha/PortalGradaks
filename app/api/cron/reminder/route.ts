@@ -1,11 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { getUnitProgressList } from "@/lib/scoring/unit-progress";
-import { sendReminderForUnitProgress } from "@/lib/reminder/service";
+import { sendReminderForUnitProgress, sleep, REMINDER_SEND_DELAY_MS } from "@/lib/reminder/service";
 import {
   SETTING_KEYS,
   DEFAULT_REMINDER_SEND_HOUR,
   DEFAULT_REMINDER_COOLDOWN_HOURS,
 } from "@/lib/scoring/setting-keys";
+
+// Headroom for pacing sends (see REMINDER_SEND_DELAY_MS) across a large
+// incomplete-unit count without the function timing out. Raise this if your
+// Vercel plan allows a higher ceiling and you expect many incomplete units
+// at once; lower plans may cap this regardless of what's requested here.
+export const maxDuration = 60;
 
 /**
  * Vercel Cron fires this hourly (see vercel.json) — it does NOT have a
@@ -73,6 +79,7 @@ export async function GET(request: Request) {
       skippedCooldown++;
       continue;
     }
+    if (sent + failed > 0) await sleep(REMINDER_SEND_DELAY_MS); // pace sends — see comment on REMINDER_SEND_DELAY_MS
     const result = await sendReminderForUnitProgress(unit, "AUTOMATIC", null);
     if (result.ok) sent++;
     else failed++;

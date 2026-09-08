@@ -7,6 +7,20 @@ import { getUnitProgressList, type UnitProgress } from "@/lib/scoring/unit-progr
 
 export type ReminderResult = { ok: true } | { ok: false; error: string };
 
+/**
+ * Fonnte (and unofficial WhatsApp gateways generally) automate a real WA
+ * account rather than using Meta's sanctioned Business API — WhatsApp's
+ * abuse detection weighs send velocity heavily, so firing a whole batch of
+ * near-identical messages back-to-back is one of the more avoidable ways to
+ * get the underlying number flagged/banned. Callers looping over multiple
+ * units (bulk send, cron) should await `sleep(REMINDER_SEND_DELAY_MS)`
+ * between iterations — a single manual send never needs this.
+ */
+export const REMINDER_SEND_DELAY_MS = 300;
+export function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** Replaces {{key}} placeholders; leaves unknown ones untouched rather than erroring. */
 export function buildReminderMessage(template: string, vars: Record<string, string | number>): string {
   return template.replace(/\{\{(\w+)\}\}/g, (match, key: string) => {
