@@ -1,8 +1,18 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { SETTING_KEYS, DEFAULT_ATTENDANCE_STATUS_SCORES, DEFAULT_ATTENDANCE_MAPPING } from "./setting-keys";
+import {
+  SETTING_KEYS,
+  DEFAULT_ATTENDANCE_STATUS_SCORES,
+  DEFAULT_ATTENDANCE_MAPPING,
+  DEFAULT_PARTICIPATION_MAPPING,
+} from "./setting-keys";
 
-export { SETTING_KEYS, DEFAULT_ATTENDANCE_STATUS_SCORES, DEFAULT_ATTENDANCE_MAPPING };
+export {
+  SETTING_KEYS,
+  DEFAULT_ATTENDANCE_STATUS_SCORES,
+  DEFAULT_ATTENDANCE_MAPPING,
+  DEFAULT_PARTICIPATION_MAPPING,
+};
 
 export type WeightedItem = {
   label: string;
@@ -51,7 +61,7 @@ type ParamWeights = {
 };
 
 export async function computeScores(studentId: string): Promise<ComputedScores> {
-  const [student, activeParams, activeSessions, attScoresSetting, attMappingSetting] = await Promise.all([
+  const [student, activeParams, activeSessions, attScoresSetting, attMappingSetting, partMappingSetting] = await Promise.all([
     prisma.student.findUniqueOrThrow({
       where: { id: studentId },
       select: {
@@ -110,10 +120,12 @@ export async function computeScores(studentId: string): Promise<ComputedScores> 
     }),
     prisma.setting.findUnique({ where: { key: SETTING_KEYS.attendanceStatusScores } }),
     prisma.setting.findUnique({ where: { key: SETTING_KEYS.attendanceMapping } }),
+    prisma.setting.findUnique({ where: { key: SETTING_KEYS.participationMapping } }),
   ]);
 
   const statusScores = (attScoresSetting?.value as Record<string, number> | null) ?? DEFAULT_ATTENDANCE_STATUS_SCORES;
   const attendanceMapping = (attMappingSetting?.value as Record<string, string[]> | null) ?? DEFAULT_ATTENDANCE_MAPPING;
+  const participationMapping = (partMappingSetting?.value as Record<string, string[]> | null) ?? DEFAULT_PARTICIPATION_MAPPING;
 
   const personalItems: WeightedItem[] = [];
   const skillItems: WeightedItem[] = [];
@@ -287,12 +299,45 @@ export async function computeScores(studentId: string): Promise<ComputedScores> 
     }
 
     if (!isProker) {
-      // Regular session attendance: Keaktifan is B.2 and C.1
+      // Regular session attendance: Keaktifan targets mapped from participationMapping setting
       const attendanceNormalized = normalize(effective, 4);
 
       if (status === "HADIR" && participationScore !== null && participationScore > 0) {
-        b2Scores.push(attendanceNormalized);
-        c1Scores.push(attendanceNormalized);
+        const mappedPartTargets = participationMapping[sessionCode] || participationMapping[session.code] || participationMapping["DEFAULT"] || ["B.2", "C.1"];
+
+        let partWeight = 0;
+        for (const subCode of mappedPartTargets) {
+          const normSub = subCode.toUpperCase().trim();
+          if (normSub === "A.1" || normSub === "A1") {
+            a1Scores.push(attendanceNormalized);
+            partWeight += personalWeights.a1;
+          } else if (normSub === "A.2" || normSub === "A2") {
+            a2Scores.push(attendanceNormalized);
+            partWeight += personalWeights.a2;
+          } else if (normSub === "B.1" || normSub === "B1") {
+            b1Scores.push(attendanceNormalized);
+            partWeight += personalWeights.b1;
+          } else if (normSub === "B.2" || normSub === "B2") {
+            b2Scores.push(attendanceNormalized);
+            partWeight += personalWeights.b2;
+          } else if (normSub === "C.1" || normSub === "C1") {
+            c1Scores.push(attendanceNormalized);
+            partWeight += personalWeights.c1;
+          } else if (normSub === "C.2" || normSub === "C2") {
+            c2Scores.push(attendanceNormalized);
+            partWeight += personalWeights.c2;
+          }
+        }
+
+        personalItems.push({
+          label: `Keaktifan Sesi (${sessionCode})`,
+          refCode: "PARTICIPATION",
+          rawValue: participationScore,
+          maxValue: 4,
+          normalizedValue: attendanceNormalized,
+          weight: Number(partWeight.toFixed(4)),
+          weightedContribution: Number((attendanceNormalized * partWeight).toFixed(3)),
+        });
       }
     }
 

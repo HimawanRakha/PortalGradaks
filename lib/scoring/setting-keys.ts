@@ -13,6 +13,7 @@ export const SETTING_KEYS = {
   reminderMessageTemplate: "reminder.messageTemplate",
   attendanceStatusScores: "attendance.statusScores",
   attendanceMapping: "attendance.mapping",
+  participationMapping: "attendance.participationMapping",
 } as const;
 
 export const DEFAULT_TEMU_ABSENCE_THRESHOLD = 2;
@@ -36,4 +37,8 @@ export const DEFAULT_ATTENDANCE_MAPPING: Record<string, string[]> = {
   SOSCOM: ["A.1", "B.2", "C.2"],
   COMPANY_EXPO: ["B.1", "C.2"],
   COMPEX: ["B.1", "C.2"],
+};
+
+export const DEFAULT_PARTICIPATION_MAPPING: Record<string, string[]> = {
+  DEFAULT: ["B.2", "C.1"],
 };

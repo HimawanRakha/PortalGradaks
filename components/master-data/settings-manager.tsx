@@ -21,6 +21,7 @@ import {
   DEFAULT_REMINDER_MESSAGE_TEMPLATE,
   DEFAULT_ATTENDANCE_STATUS_SCORES,
   DEFAULT_ATTENDANCE_MAPPING,
+  DEFAULT_PARTICIPATION_MAPPING,
 } from "@/lib/scoring/setting-keys";
 
 type SettingData = {
@@ -72,8 +73,20 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
   const [attendanceMapping, setAttendanceMapping] = useState<Record<string, string[]>>(initialMapping);
   const [newSessionCode, setNewSessionCode] = useState("");
 
+  // Participation Mapping State: Record<sessionCode, subCode[]> (DEFAULT is fallback for regular sessions)
+  const initialPartMapping = getSettingValue(SETTING_KEYS.participationMapping, DEFAULT_PARTICIPATION_MAPPING);
+  const [participationMapping, setParticipationMapping] = useState<Record<string, string[]>>(initialPartMapping);
+
   const handleToggleMapping = (sessionCode: string, subCode: string) => {
     setAttendanceMapping((prev) => {
+      const current = prev[sessionCode] || [];
+      const updated = current.includes(subCode) ? current.filter((x) => x !== subCode) : [...current, subCode];
+      return { ...prev, [sessionCode]: updated };
+    });
+  };
+
+  const handleTogglePartMapping = (sessionCode: string, subCode: string) => {
+    setParticipationMapping((prev) => {
       const current = prev[sessionCode] || [];
       const updated = current.includes(subCode) ? current.filter((x) => x !== subCode) : [...current, subCode];
       return { ...prev, [sessionCode]: updated };
@@ -118,11 +131,12 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
           ALPA: Number(alpaScore),
         },
         [SETTING_KEYS.attendanceMapping]: attendanceMapping,
+        [SETTING_KEYS.participationMapping]: participationMapping,
       };
 
       const res = await updateSettingsAction(settings);
       if (res.ok) {
-        toast.success("Konfigurasi dan pemetaan presensi berhasil disimpan.");
+        toast.success("Konfigurasi, pemetaan presensi, dan keaktifan berhasil disimpan.");
       } else {
         toast.error(res.error);
       }
@@ -148,10 +162,10 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
           <CardHeader>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <CheckSquare className="size-4 text-primary" />
-              Pengaturan Skor & Pemetaan Presensi Sesi ke Sub-Nilai Personal
+              Pengaturan Skor & Pemetaan Presensi / Keaktifan Sesi ke Sub-Nilai Personal
             </CardTitle>
             <CardDescription className="text-[10px]">
-              Tentukan bobot skor status presensi (HADIR/IZIN/ALPA) serta pilih Sub-Nilai mana saja yang dipengaruhi oleh masing-masing sesi kegiatan/proker.
+              Tentukan bobot skor status presensi (HADIR/IZIN/ALPA) serta atur Sub-Nilai mana saja yang dipengaruhi oleh Status Kehadiran dan Nilai Keaktifan Mentor (1-4).
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -195,7 +209,7 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
             {/* Session Sub-Nilai Mapping Table */}
             <div className="space-y-3 pt-2">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <h4 className="font-semibold text-xs text-foreground">2. Pemetaan Sesi Kegiatan ke Sub-Nilai Personal</h4>
+                <h4 className="font-semibold text-xs text-foreground">2. Pemetaan Status Kehadiran (HADIR/IZIN/ALPA) ke Sub-Nilai</h4>
                 <div className="flex items-center gap-1.5">
                   <Input
                     placeholder="Kode Sesi Baru (misal: TEMU_1)"
@@ -204,7 +218,7 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
                     className="h-7 text-xs font-mono w-48"
                   />
                   <Button size="xs" variant="outline" onClick={handleAddSessionMapping}>
-                    <Plus className="size-3" /> Tambah
+                    <Plus className="size-3" /> Tambah Sesi
                   </Button>
                 </div>
               </div>
@@ -214,7 +228,7 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
                   <thead>
                     <tr className="bg-muted/50 border-b text-muted-foreground font-medium text-[11px]">
                       <th className="p-2.5 w-36">Kode Sesi</th>
-                      <th className="p-2.5">Tujuan Sub-Nilai Personal (Centang yang Dipengaruhi)</th>
+                      <th className="p-2.5">Tujuan Sub-Nilai Personal (Status Presensi)</th>
                       <th className="p-2.5 w-16 text-right">Aksi</th>
                     </tr>
                   </thead>
@@ -268,6 +282,58 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
                         </tr>
                       ))
                     )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Participation Score Mapping Table */}
+            <div className="space-y-3 pt-2">
+              <h4 className="font-semibold text-xs text-foreground">3. Pemetaan Skor Keaktifan Mentor (Skala 1-4) ke Sub-Nilai</h4>
+              <p className="text-[10px] text-muted-foreground">
+                Tentukan Sub-Nilai mana yang menerima masukan skor keaktifan maba (1-4) dari mentor pada sesi rutin.
+              </p>
+              <div className="overflow-x-auto rounded-lg border bg-background">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-muted/50 border-b text-muted-foreground font-medium text-[11px]">
+                      <th className="p-2.5 w-36">Berlaku Untuk</th>
+                      <th className="p-2.5">Tujuan Sub-Nilai Personal (Skor Keaktifan 1-4)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    <tr className="hover:bg-muted/20">
+                      <td className="p-2.5 font-mono font-bold">
+                        <span className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 px-1.5 py-0.5 rounded">
+                          DEFAULT (Sesi Rutin)
+                        </span>
+                      </td>
+                      <td className="p-2.5">
+                        <div className="flex items-center gap-4 flex-wrap">
+                          {SUB_NILAI_OPTIONS.map((sub) => {
+                            const targets = participationMapping["DEFAULT"] || ["B.2", "C.1"];
+                            const checked = targets.includes(sub.code);
+                            return (
+                              <label
+                                key={sub.code}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded border cursor-pointer select-none text-[11px] transition-colors ${
+                                  checked ? "bg-emerald-500/10 border-emerald-500/30 font-semibold text-emerald-600" : "bg-muted/10 border-muted text-muted-foreground hover:bg-muted/30"
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={() => handleTogglePartMapping("DEFAULT", sub.code)}
+                                  className="size-3.5"
+                                />
+                                <span>
+                                  <strong className="font-mono">{sub.code}</strong> {sub.label}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
