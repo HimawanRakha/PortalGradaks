@@ -1,8 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { SETTING_KEYS } from "./setting-keys";
+import { SETTING_KEYS, DEFAULT_ATTENDANCE_STATUS_SCORES, DEFAULT_ATTENDANCE_MAPPING } from "./setting-keys";
 
-export { SETTING_KEYS };
+export { SETTING_KEYS, DEFAULT_ATTENDANCE_STATUS_SCORES, DEFAULT_ATTENDANCE_MAPPING };
 
 export type WeightedItem = {
   label: string;
@@ -51,44 +51,69 @@ type ParamWeights = {
 };
 
 export async function computeScores(studentId: string): Promise<ComputedScores> {
-  const student = await prisma.student.findUniqueOrThrow({
-    where: { id: studentId },
-    select: {
-      scores: {
-        select: {
-          value: true,
-          parameter: {
-            select: { subCode: true, name: true, personalWeight: true, skillWeight: true, maxValue: true },
+  const [student, activeParams, activeSessions, attScoresSetting, attMappingSetting] = await Promise.all([
+    prisma.student.findUniqueOrThrow({
+      where: { id: studentId },
+      select: {
+        scores: {
+          select: {
+            parameterId: true,
+            value: true,
           },
         },
-      },
-      groupMemberships: {
-        select: {
-          group: {
-            select: {
-              groupScores: {
-                select: {
-                  value: true,
-                  parameter: {
-                    select: { subCode: true, name: true, personalWeight: true, skillWeight: true, maxValue: true },
+        groupMemberships: {
+          select: {
+            group: {
+              select: {
+                groupScores: {
+                  select: {
+                    parameterId: true,
+                    value: true,
                   },
                 },
               },
             },
           },
         },
-      },
-      attendances: {
-        select: {
-          status: true,
-          participationScore: true,
-          session: { select: { code: true } },
+        attendances: {
+          select: {
+            sessionId: true,
+            status: true,
+            participationScore: true,
+            session: { select: { id: true, code: true } },
+          },
         },
       },
-      logbookEntries: { select: { status: true } },
-      questionnaireStatuses: { select: { code: true, submitted: true } },
-    },
-  });
+    }),
+    prisma.parameter.findMany({
+      where: { active: true, material: { active: true, activity: { active: true } } },
+      select: {
+        id: true,
+        subCode: true,
+        name: true,
+        personalWeight: true,
+        skillWeight: true,
+        maxValue: true,
+      },
+      orderBy: { order: "asc" },
+    }),
+    prisma.activitySession.findMany({
+      where: { activity: { active: true }, code: { not: "UMUM" } },
+      select: {
+        id: true,
+        code: true,
+        name: true,
+        mode: true,
+        activity: { select: { id: true, name: true, code: true } },
+      },
+      orderBy: [{ activity: { order: "asc" } }, { code: "asc" }],
+    }),
+    prisma.setting.findUnique({ where: { key: SETTING_KEYS.attendanceStatusScores } }),
+    prisma.setting.findUnique({ where: { key: SETTING_KEYS.attendanceMapping } }),
+  ]);
+
+  const statusScores = (attScoresSetting?.value as Record<string, number> | null) ?? DEFAULT_ATTENDANCE_STATUS_SCORES;
+  const attendanceMapping = (attMappingSetting?.value as Record<string, string[]> | null) ?? DEFAULT_ATTENDANCE_MAPPING;
 
   const personalItems: WeightedItem[] = [];
   const skillItems: WeightedItem[] = [];
@@ -173,67 +198,113 @@ export async function computeScores(studentId: string): Promise<ComputedScores> 
     }
   }
 
-  // 1. Process regular scores
-  for (const score of student.scores) {
-    pushParamItem(score.value, score.parameter);
-  }
+  // Collective sub-value weights for Nilai Personal
+  const personalWeights = {
+    a1: 0.020,
+    a2: 0.3787,
+    b1: 0.2609,
+    b2: 0.1755,
+    c1: 0.1172,
+    c2: 0.0476,
+  };
 
-  // 2. Process group scores
-  for (const membership of student.groupMemberships) {
-    for (const groupScore of membership.group.groupScores) {
-      pushParamItem(groupScore.value, groupScore.parameter);
+  // Map student scores and group scores by parameterId
+  const studentScoresMap = new Map<string, number | null>();
+  for (const s of student.scores) {
+    studentScoresMap.set(s.parameterId, s.value);
+  }
+  for (const m of student.groupMemberships) {
+    for (const gs of m.group.groupScores) {
+      if (!studentScoresMap.has(gs.parameterId)) {
+        studentScoresMap.set(gs.parameterId, gs.value);
+      }
     }
   }
 
-  // 3. Process regular and proker attendances
-  for (const attendance of student.attendances) {
-    const sessionCode = attendance.session.code.toUpperCase();
-    const isProker = ["PESRAF", "DIESNAT", "ARUS_EMAS", "SOSCOM", "COMPANY_EXPO"].includes(sessionCode);
+  // 1. Process all active parameters: if empty/unentered, raw value is 0 (Requirement 2)
+  for (const param of activeParams) {
+    const rawVal = studentScoresMap.has(param.id) ? studentScoresMap.get(param.id) : 0;
+    const value = rawVal ?? 0;
+    pushParamItem(value, param);
+  }
 
-    const base = attendance.participationScore ?? 0;
-    const effective = attendance.status === "ALPA" ? 0 : attendance.status === "IZIN" ? base * 0.5 : base;
+  // Map student attendances by sessionId
+  const attendanceMap = new Map<string, { status: "HADIR" | "IZIN" | "ALPA"; participationScore: number | null }>();
+  for (const att of student.attendances) {
+    attendanceMap.set(att.sessionId, { status: att.status, participationScore: att.participationScore });
+  }
 
-    // Add for backward compatibility of attendance reports / min criteria checking
-    personalItems.push({
-      label: `Kehadiran Sesi (${sessionCode})`,
-      refCode: "ATTENDANCE",
-      rawValue: attendance.status === "HADIR" ? (attendance.participationScore ?? 4) : attendance.status === "IZIN" ? 2 : 0,
-      maxValue: 4,
-      normalizedValue: attendance.status === "HADIR" ? 100 : attendance.status === "IZIN" ? 50 : 0,
-      weight: 0,
-      weightedContribution: 0,
-    });
+  // 2. Process all active activity sessions: if null/unrecorded, status is ALPA (Requirement 2)
+  for (const session of activeSessions) {
+    const att = attendanceMap.get(session.id);
+    const status = att ? att.status : "ALPA";
+    const participationScore = att ? att.participationScore : 0;
 
-    if (isProker) {
-      const statusVal = attendance.status;
-      const score = statusVal === "HADIR" ? 100 : statusVal === "IZIN" ? 50 : 0;
+    const sessionCode = session.code.toUpperCase();
+    const isProker = ["PESRAF", "DIESNAT", "ARUS_EMAS", "SOSCOM", "COMPANY_EXPO", "COMPEX"].includes(sessionCode);
 
-      if (sessionCode === "PESRAF") {
-        a1Scores.push(score);
-      } else if (sessionCode === "DIESNAT") {
-        a2Scores.push(score);
-      } else if (sessionCode === "ARUS_EMAS") {
-        a1Scores.push(score);
-        a2Scores.push(score);
-      } else if (sessionCode === "SOSCOM") {
-        a1Scores.push(score);
-        b2Scores.push(score);
-        c2Scores.push(score);
-      } else if (sessionCode === "COMPANY_EXPO") {
-        b1Scores.push(score);
-        c2Scores.push(score);
+    const base = participationScore ?? 0;
+    const effective = status === "ALPA" ? 0 : status === "IZIN" ? base * 0.5 : base;
+
+    const hadirScore = typeof statusScores.HADIR === "number" ? statusScores.HADIR : 100;
+    const izinScore = typeof statusScores.IZIN === "number" ? statusScores.IZIN : 50;
+    const alpaScore = typeof statusScores.ALPA === "number" ? statusScores.ALPA : 0;
+
+    const score = status === "HADIR" ? hadirScore : status === "IZIN" ? izinScore : alpaScore;
+
+    let attWeight = 0;
+
+    // Resolve target sub-codes from attendanceMapping setting for this sessionCode, or fall back to default
+    const mappedTargets = attendanceMapping[sessionCode] || attendanceMapping[session.code] || (isProker ? [] : ["A.1"]);
+
+    if (mappedTargets.length > 0) {
+      for (const subCode of mappedTargets) {
+        const normSub = subCode.toUpperCase().trim();
+        if (normSub === "A.1" || normSub === "A1") {
+          a1Scores.push(score);
+          attWeight += personalWeights.a1;
+        } else if (normSub === "A.2" || normSub === "A2") {
+          a2Scores.push(score);
+          attWeight += personalWeights.a2;
+        } else if (normSub === "B.1" || normSub === "B1") {
+          b1Scores.push(score);
+          attWeight += personalWeights.b1;
+        } else if (normSub === "B.2" || normSub === "B2") {
+          b2Scores.push(score);
+          attWeight += personalWeights.b2;
+        } else if (normSub === "C.1" || normSub === "C1") {
+          c1Scores.push(score);
+          attWeight += personalWeights.c1;
+        } else if (normSub === "C.2" || normSub === "C2") {
+          c2Scores.push(score);
+          attWeight += personalWeights.c2;
+        }
       }
     } else {
-      // Regular session attendance: Kehadiran is A.1, Keaktifan is B.2 and C.1
+      // Default fallback if no mapping configured
+      a1Scores.push(score);
+      attWeight += personalWeights.a1;
+    }
+
+    if (!isProker) {
+      // Regular session attendance: Keaktifan is B.2 and C.1
       const attendanceNormalized = normalize(effective, 4);
 
-      a1Scores.push(attendance.status === "HADIR" ? 100 : attendance.status === "IZIN" ? 50 : 0);
-
-      if (attendance.status === "HADIR" && attendance.participationScore !== null) {
+      if (status === "HADIR" && participationScore !== null && participationScore > 0) {
         b2Scores.push(attendanceNormalized);
         c1Scores.push(attendanceNormalized);
       }
     }
+
+    personalItems.push({
+      label: `Kehadiran Sesi (${sessionCode})`,
+      refCode: "ATTENDANCE",
+      rawValue: status === "HADIR" ? (participationScore || 4) : status === "IZIN" ? 2 : 0,
+      maxValue: 4,
+      normalizedValue: score,
+      weight: Number(attWeight.toFixed(4)),
+      weightedContribution: Number((score * attWeight).toFixed(3)),
+    });
   }
 
   // Helper to calculate average
@@ -251,16 +322,6 @@ export async function computeScores(studentId: string): Promise<ComputedScores> 
   const k = getAverage(keilmiahanScores);
   const mb = getAverage(minatBakatScores);
   const kw = getAverage(kewirausahaanScores);
-
-  // Collective sub-value weights for Nilai Personal
-  const personalWeights = {
-    a1: 0.020,
-    a2: 0.3787,
-    b1: 0.2609,
-    b2: 0.1755,
-    c1: 0.1172,
-    c2: 0.0476,
-  };
 
   let personalScoreSum = 0;
   let personalWeightSum = 0;

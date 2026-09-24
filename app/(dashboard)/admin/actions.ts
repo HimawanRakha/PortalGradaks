@@ -244,7 +244,10 @@ async function importProkerRow(dataMap: Record<string, string>, studentId: strin
   }
 
   const session = await prisma.activitySession.findFirst({
-    where: { activity: { code: "PROKER" }, code: sessionCode },
+    where: {
+      activity: { OR: [{ code: "PROKER" }, { isImportOnly: true }] },
+      code: { equals: sessionCode, mode: "insensitive" },
+    },
   });
   if (!session) {
     return { action: ImportRowAction.FAILED, errorReason: `Sesi Proker "${sessionCode}" tidak ditemukan.` };

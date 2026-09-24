@@ -592,7 +592,7 @@ export async function updateUserAction(
 // SETTINGS (WEIGHTS & THRESHOLDS) ACTIONS
 // ==========================================
 
-export async function updateSettingsAction(settings: Record<string, number | boolean | string>): Promise<ActionResult> {
+export async function updateSettingsAction(settings: Record<string, Prisma.InputJsonValue>): Promise<ActionResult> {
   try {
     await assertAdmin();
     for (const [key, value] of Object.entries(settings)) {

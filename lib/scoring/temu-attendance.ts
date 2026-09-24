@@ -17,19 +17,38 @@ export type TemuAttendanceCounts = {
  * either way).
  */
 export async function getTemuAttendanceCounts(studentId: string): Promise<TemuAttendanceCounts> {
-  const absences = await prisma.attendance.findMany({
-    where: {
-      studentId,
-      status: { in: [AttendanceStatus.IZIN, AttendanceStatus.ALPA] },
-      session: {
+  const [activeTemuSessions, attendances] = await Promise.all([
+    prisma.activitySession.findMany({
+      where: {
+        activity: { isTemuFteic: true, active: true },
         mode: { not: SessionMode.NA },
-        activity: { isTemuFteic: true },
       },
-    },
-    select: { session: { select: { mode: true } } },
-  });
+      select: { id: true, mode: true },
+    }),
+    prisma.attendance.findMany({
+      where: {
+        studentId,
+        session: { activity: { isTemuFteic: true } },
+      },
+      select: { sessionId: true, status: true },
+    }),
+  ]);
 
-  const temuOfflineAbsences = absences.filter((a) => a.session.mode === SessionMode.OFFLINE).length;
+  const attMap = new Map(attendances.map((a) => [a.sessionId, a.status]));
 
-  return { temuAbsences: absences.length, temuOfflineAbsences };
+  let temuAbsences = 0;
+  let temuOfflineAbsences = 0;
+
+  for (const session of activeTemuSessions) {
+    const status = attMap.get(session.id) ?? AttendanceStatus.ALPA;
+
+    if (status === AttendanceStatus.IZIN || status === AttendanceStatus.ALPA) {
+      temuAbsences++;
+      if (session.mode === SessionMode.OFFLINE) {
+        temuOfflineAbsences++;
+      }
+    }
+  }
+
+  return { temuAbsences, temuOfflineAbsences };
 }

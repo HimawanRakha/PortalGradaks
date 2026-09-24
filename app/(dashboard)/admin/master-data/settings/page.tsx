@@ -12,10 +12,9 @@ export default async function SettingsPage() {
     orderBy: { key: "asc" },
   });
 
-  // Convert decimal values to javascript native float/boolean/string types for serialization
   const settings = rawSettings.map((s) => ({
     key: s.key,
-    value: typeof s.value === "boolean" || typeof s.value === "string" ? s.value : Number(s.value),
+    value: s.value as any,
   }));
 
   return (
