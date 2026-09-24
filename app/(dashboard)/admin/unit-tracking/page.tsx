@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
 import { Role, LogbookStatus } from "@/app/generated/prisma/enums";
+import { PER_STUDENT_INPUT_METHODS } from "@/lib/scoring/unit-progress";
 import { UnitTrackingMatrix, UnitTrackingItem, StudentTrackingInfo } from "@/components/admin/unit-tracking-matrix";
 
 export const metadata: Metadata = { title: "Tracking Presensi & Nilai Unit - Admin" };
@@ -18,8 +19,9 @@ export default async function AdminUnitTrackingPage() {
       materials: {
         where: { active: true },
         include: {
+          // Per-maba parameters only — see PER_STUDENT_INPUT_METHODS.
           parameters: {
-            where: { active: true },
+            where: { active: true, inputMethod: { in: PER_STUDENT_INPUT_METHODS } },
             select: { id: true, materialId: true },
           },
         },

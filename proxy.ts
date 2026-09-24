@@ -12,14 +12,14 @@ export default auth((req) => {
 
   // Rate limiting — proxy defaults to the Node.js runtime in this Next.js
   // version (not Edge), and Server Function calls route through here too
-  // (they're POSTs to their originating page), so both the public NRP
+  // (they're POSTs to their originating page), so both the public NRP/Unit
   // lookup and the login form submission can be throttled from one place.
-  // Thresholds are deliberately generous (shared campus IPs/NAT can put many
-  // legitimate students behind one address) — this blunts scripted
-  // scraping/brute-force, not normal concurrent use.
-  if (pathname === "/cek-raport" && req.nextUrl.searchParams.has("nrp")) {
+  const isPublicLookup =
+    (pathname === "/cek-raport" && req.nextUrl.searchParams.has("nrp")) ||
+    (pathname === "/cek-unit" && req.nextUrl.searchParams.has("unit"));
+  if (isPublicLookup) {
     const ip = getClientIp(req);
-    const { allowed, retryAfterSeconds } = checkRateLimit(`cek-raport:${ip}`, 40, 5 * 60 * 1000);
+    const { allowed, retryAfterSeconds } = checkRateLimit(`cek-public:${ip}`, 40, 5 * 60 * 1000);
     if (!allowed) {
       return NextResponse.json(
         { error: "Terlalu banyak permintaan. Silakan coba lagi beberapa menit lagi." },
@@ -39,7 +39,25 @@ export default auth((req) => {
     }
   }
 
-  // 1. Maba domain / subdomain handling (e.g. contains 'raport', 'maba', or 'cek-raport')
+  // 1. Dedicated Unit Status domain/subdomain (host contains 'status-unit', 'cek-unit' or 'unit-maba').
+  // Checked BEFORE the raport block because 'unit-maba' also contains 'maba'.
+  if (host.includes("status-unit") || host.includes("cek-unit") || host.includes("unit-maba")) {
+    if (pathname === "/") {
+      return NextResponse.rewrite(new URL("/cek-unit", req.nextUrl));
+    }
+    if (
+      pathname.startsWith("/login") ||
+      pathname.startsWith("/admin") ||
+      pathname.startsWith("/mentor") ||
+      pathname.startsWith("/kepala-region") ||
+      pathname.startsWith("/event")
+    ) {
+      return NextResponse.redirect(new URL("/", req.nextUrl));
+    }
+    return NextResponse.next();
+  }
+
+  // 2. Maba Raport domain / subdomain handling (e.g. contains 'raport', 'maba', or 'cek-raport')
   if (host.includes("raport") || host.includes("maba") || host.includes("cek-raport")) {
     // Rewrite root "/" directly to "/cek-raport" so maba lands straight on the lookup form
     if (pathname === "/") {
@@ -60,10 +78,10 @@ export default auth((req) => {
     return NextResponse.next();
   }
 
-  // 2. Main portal routing (Mentor/Admin/PSDM)
+  // 3. Main portal routing (Mentor/Admin/PSDM)
   const isLoggedIn = !!req.auth;
   const isLoginPage = pathname === "/login";
-  const isPublicPage = isLoginPage || pathname.startsWith("/cek-raport");
+  const isPublicPage = isLoginPage || pathname.startsWith("/cek-raport") || pathname.startsWith("/cek-unit");
 
   if (!isLoggedIn && !isPublicPage) {
     const loginUrl = new URL("/login", req.nextUrl);
