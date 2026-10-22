@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
-import { Role, LogbookStatus } from "@/app/generated/prisma/enums";
+import { Role, LogbookStatus, ReminderStatus } from "@/app/generated/prisma/enums";
 import { PER_STUDENT_INPUT_METHODS } from "@/lib/scoring/unit-progress";
+import { getUnitChecklists } from "@/lib/scoring/unit-checklist";
+import { getBroadcastTemplates } from "@/lib/broadcast/templates";
+import { buildUnitBroadcast } from "@/lib/broadcast/message";
 import { UnitTrackingMatrix, UnitTrackingItem, StudentTrackingInfo } from "@/components/admin/unit-tracking-matrix";
 
 export const metadata: Metadata = { title: "Tracking Presensi & Nilai Unit - Admin" };
@@ -64,16 +67,15 @@ export default async function AdminUnitTrackingPage() {
     });
   }
 
-  // 1b. Latest reminder attempt per unit, for the "terakhir diingatkan" caption
-  const reminderLogs = await prisma.reminderLog.findMany({
-    orderBy: { createdAt: "desc" },
-    select: { unitId: true, status: true, createdAt: true },
+  // 1b. Latest BC admin opened per unit (see recordBroadcastAction), for the "BC terakhir dibuka" caption
+  const lastBroadcasts = await prisma.reminderLog.groupBy({
+    by: ["unitId"],
+    where: { status: ReminderStatus.SENT },
+    _max: { createdAt: true },
   });
-  const lastReminderByUnit = new Map<string, { status: string; at: string }>();
-  for (const log of reminderLogs) {
-    if (!lastReminderByUnit.has(log.unitId)) {
-      lastReminderByUnit.set(log.unitId, { status: log.status, at: log.createdAt.toISOString() });
-    }
+  const lastBroadcastByUnit = new Map<string, string>();
+  for (const row of lastBroadcasts) {
+    if (row._max.createdAt) lastBroadcastByUnit.set(row.unitId, row._max.createdAt.toISOString());
   }
 
   // 2. Fetch all units with mentor and students
@@ -104,8 +106,11 @@ export default async function AdminUnitTrackingPage() {
     },
   });
 
+  // 2b. Reminder-vs-thank-you BC per unit, from the same checklist the public /cek-unit page shows
+  const [checklists, broadcastTemplates] = await Promise.all([getUnitChecklists(unitsData), getBroadcastTemplates()]);
+
   // 3. Process each unit to calculate metrics per activity
-  const processedUnits: UnitTrackingItem[] = unitsData.map((unit) => {
+  const processedUnits: UnitTrackingItem[] = unitsData.map((unit, unitIndex) => {
     const mabaCount = unit.students.length;
 
     const activityMetrics: UnitTrackingItem["activityMetrics"] = {};
@@ -182,7 +187,8 @@ export default async function AdminUnitTrackingPage() {
       mentorName: unit.mentor?.name || null,
       mentorNrp: unit.mentor?.nrp || null,
       mentorPhone: unit.mentor?.phone || null,
-      lastReminder: lastReminderByUnit.get(unit.id) || null,
+      lastBroadcastAt: lastBroadcastByUnit.get(unit.id) ?? null,
+      broadcast: buildUnitBroadcast(checklists[unitIndex], broadcastTemplates),
       mabaCount,
       students: processedStudents,
       activityMetrics,
@@ -219,6 +225,7 @@ export default async function AdminUnitTrackingPage() {
         regions={regions}
         units={processedUnits}
         defaultActivityCode={defaultActivityCode}
+        feedbackUrlConfigured={broadcastTemplates.feedbackUrl !== ""}
       />
     </div>
   );

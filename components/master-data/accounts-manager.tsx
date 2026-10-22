@@ -297,7 +297,7 @@ export function AccountsManager({
             <div className="grid gap-1">
               <Label htmlFor="user-phone">No. WhatsApp (Opsional)</Label>
               <Input id="user-phone" placeholder="08xxxxxxxxxx" value={phone} onChange={(e) => setPhone(e.target.value)} className="h-8" />
-              <span className="text-[10px] text-muted-foreground">Dipakai untuk reminder pengisian nilai via WhatsApp (khusus Mentor).</span>
+              <span className="text-[10px] text-muted-foreground">Dipakai untuk membuka chat WhatsApp mentor dari tombol BC di Tracking Unit (khusus Mentor).</span>
             </div>
 
             {departments && departments.length > 0 && (

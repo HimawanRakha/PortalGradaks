@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, Copy } from "lucide-react";
+import { formatIncompleteList } from "@/lib/broadcast/message";
 
 // Copy-only by design: /cek-unit is public and unit codes are guessable, so
 // no mentor contact (phone / wa.me link) is ever exposed here — the Ketua
@@ -22,18 +23,10 @@ export function UnitReminderButton({
 }) {
   const [copied, setCopied] = useState(false);
 
-  const byActivity = new Map<string, string[]>();
-  for (const it of incompleteItems) {
-    const list = byActivity.get(it.activityName) ?? [];
-    list.push(it.label);
-    byActivity.set(it.activityName, list);
-  }
-  const listText = Array.from(byActivity, ([act, labels]) => `*${act}*\n${labels.map((l) => `- ${l}`).join("\n")}`).join("\n\n");
-
   const message =
     `Halo Kak ${mentorName || "Mentor"}, izin mengingatkan dari Portal Gradaks 🙏\n\n` +
     `Status kelengkapan nilai Unit ${unitName} (${unitCode}) saat ini ${overallPct}%. Berikut yang masih belum lengkap diinput:\n\n` +
-    `${listText}\n\n` +
+    `${formatIncompleteList(incompleteItems)}\n\n` +
     `Mohon bantuannya ya Kak agar nilai unit kita 100% lengkap. Terima kasih Kak! 🙏`;
 
   const handleCopy = async () => {

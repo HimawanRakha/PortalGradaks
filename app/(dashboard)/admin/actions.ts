@@ -91,7 +91,7 @@ async function importAccountsRow(dataMap: Record<string, string>): Promise<RowOu
   const departmentCode = dataMap["department_code"]?.trim();
   const password = dataMap["password"];
   // Optional — re-uploading the same ACCOUNTS csv with a phone column added
-  // is the bulk way to fill in mentor WA numbers (see lib/whatsapp/fonnte.ts).
+  // is the bulk way to fill in mentor WA numbers (used by the BC links, see lib/broadcast/whatsapp.ts).
   // Blank cells never overwrite a phone already on file (see below).
   const phoneRaw = dataMap["phone"]?.trim();
 

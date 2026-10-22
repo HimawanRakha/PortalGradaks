@@ -34,6 +34,15 @@ export type UnitChecklist = {
   incompleteItems: { activityName: string; label: string }[];
 };
 
+/** The unit fields a checklist needs — lets a caller that already loaded its units skip a second query. */
+export type ChecklistUnitInput = {
+  id: string;
+  code: string;
+  name: string;
+  region: { name: string };
+  mentor: { name: string } | null;
+};
+
 /**
  * Accepts the ways a maba will realistically type a Region-Unit code
  * ("R01-U01", "r1-u1", "1-1", "R01 U01", "R01U01") and maps them onto the
@@ -52,15 +61,6 @@ export function normalizeUnitCode(raw: string): string {
  * Per-activity completeness checklist for ONE unit, for the public
  * /cek-unit page (Ketua Unit maba). Counts only — never exposes any maba's
  * name or score value.
- *
- * Unlike getUnitProgressList() (lib/scoring/unit-progress.ts), this only
- * counts what the unit's MENTOR is responsible for inputting, since the
- * point of the page is nudging the mentor: attendance per real session,
- * individual MENTOR parameters and GROUP parameters (per kelompok).
- * IMPORT / UNIT_EVENT / REGION_EVENT are filled by PSDM or the event
- * committee and would be an unfair "belum" for the mentor. UNIT_MENTOR
- * (Inclenation unit competition scores) is left out on purpose too — it's
- * a unit-level competition score, not part of the maba's penilaian.
  */
 export async function getUnitChecklist(rawCode: string): Promise<UnitChecklist | null> {
   const candidates = Array.from(new Set([rawCode.trim(), normalizeUnitCode(rawCode)])).filter(Boolean);
@@ -74,6 +74,31 @@ export async function getUnitChecklist(rawCode: string): Promise<UnitChecklist |
     },
   });
   if (!unit) return null;
+
+  const [checklist] = await getUnitChecklists([unit]);
+  return checklist;
+}
+
+/**
+ * The same checklist for many units at once, in the order given — the
+ * admin Tracking Unit page uses it to decide each unit's BC (reminder vs
+ * thank-you) from exactly what /cek-unit shows. Activities are loaded once
+ * and students/groups in one query each, not once per unit.
+ *
+ * Unlike the Tracking Unit matrix (every active activity, per-maba MENTOR
+ * and IMPORT parameters), this only counts what the unit's MENTOR is
+ * responsible for inputting in activities that have already started, since
+ * the point of the checklist is nudging the mentor: attendance per real
+ * session, individual MENTOR parameters and GROUP parameters (per
+ * kelompok). IMPORT / UNIT_EVENT / REGION_EVENT are filled by PSDM or the
+ * event committee and would be an unfair "belum" for the mentor.
+ * UNIT_MENTOR (Inclenation unit competition scores) is left out on purpose
+ * too — it's a unit-level competition score, not part of the maba's
+ * penilaian.
+ */
+export async function getUnitChecklists(units: ChecklistUnitInput[]): Promise<UnitChecklist[]> {
+  if (units.length === 0) return [];
+  const unitIds = units.map((u) => u.id);
 
   const activities = await prisma.activity.findMany({
     where: { active: true },
@@ -104,18 +129,20 @@ export async function getUnitChecklist(rawCode: string): Promise<UnitChecklist |
       for (const p of mat.parameters) if (p.inputMethod === InputMethod.MENTOR) mentorParamIds.push(p.id);
   }
 
-  const [students, groups] = await Promise.all([
+  const [allStudents, allGroups] = await Promise.all([
     prisma.student.findMany({
-      where: { unitId: unit.id, active: true },
+      where: { unitId: { in: unitIds }, active: true },
       select: {
         id: true,
+        unitId: true,
         attendances: { where: { sessionId: { in: sessionIds } }, select: { sessionId: true } },
         scores: { where: { value: { not: null }, parameterId: { in: mentorParamIds } }, select: { parameterId: true } },
       },
     }),
     prisma.group.findMany({
-      where: { unitId: unit.id },
+      where: { unitId: { in: unitIds } },
       select: {
+        unitId: true,
         materialId: true,
         members: { select: { studentId: true } },
         groupScores: { where: { value: { not: null } }, select: { parameterId: true } },
@@ -123,98 +150,116 @@ export async function getUnitChecklist(rawCode: string): Promise<UnitChecklist |
     }),
   ]);
 
-  const mabaCount = students.length;
-  const attendedBySession = new Map<string, number>();
-  const scoredParamsByStudent = students.map((st) => new Set(st.scores.map((s) => s.parameterId)));
-  for (const st of students) {
-    for (const a of st.attendances) attendedBySession.set(a.sessionId, (attendedBySession.get(a.sessionId) ?? 0) + 1);
+  const studentsByUnit = new Map<string, typeof allStudents>();
+  for (const st of allStudents) {
+    const list = studentsByUnit.get(st.unitId);
+    if (list) list.push(st);
+    else studentsByUnit.set(st.unitId, [st]);
+  }
+  const groupsByUnit = new Map<string, typeof allGroups>();
+  for (const g of allGroups) {
+    const list = groupsByUnit.get(g.unitId);
+    if (list) list.push(g);
+    else groupsByUnit.set(g.unitId, [g]);
   }
   const now = new Date();
 
-  const result: ChecklistActivity[] = [];
-  for (const act of activities) {
-    const realSessions = act.sessions.filter((s) => s.code !== "UMUM");
-    const started = realSessions.length === 0 || realSessions.some((s) => !s.scheduledAt || s.scheduledAt <= now);
-    const items: ChecklistItem[] = [];
+  return units.map((unit) => {
+    const students = studentsByUnit.get(unit.id) ?? [];
+    const groups = groupsByUnit.get(unit.id) ?? [];
 
-    for (const s of realSessions) {
-      const done = attendedBySession.get(s.id) ?? 0;
-      items.push({
-        key: `att:${s.id}`,
-        label: `Presensi ${s.name}`,
-        kind: "PRESENSI",
-        doneCount: done,
-        totalCount: mabaCount,
-        unitLabel: "Maba",
-        isComplete: mabaCount > 0 && done >= mabaCount,
-      });
+    const mabaCount = students.length;
+    const attendedBySession = new Map<string, number>();
+    const scoredParamsByStudent = students.map((st) => new Set(st.scores.map((s) => s.parameterId)));
+    for (const st of students) {
+      for (const a of st.attendances) attendedBySession.set(a.sessionId, (attendedBySession.get(a.sessionId) ?? 0) + 1);
     }
 
-    if (!act.isImportOnly) {
-      for (const mat of act.materials) {
-        const mentorParams = mat.parameters.filter((p) => p.inputMethod === InputMethod.MENTOR).map((p) => p.id);
-        const groupParams = mat.parameters.filter((p) => p.inputMethod === InputMethod.GROUP).map((p) => p.id);
+    const result: ChecklistActivity[] = [];
+    for (const act of activities) {
+      const realSessions = act.sessions.filter((s) => s.code !== "UMUM");
+      const started = realSessions.length === 0 || realSessions.some((s) => !s.scheduledAt || s.scheduledAt <= now);
+      const items: ChecklistItem[] = [];
 
-        if (mentorParams.length > 0) {
-          const done = scoredParamsByStudent.filter((set) => mentorParams.every((id) => set.has(id))).length;
-          items.push({
-            key: `mat:${mat.id}`,
-            label: `Penilaian ${mat.name}`,
-            kind: "NILAI",
-            doneCount: done,
-            totalCount: mabaCount,
-            unitLabel: "Maba",
-            isComplete: mabaCount > 0 && done >= mabaCount,
-          });
-        }
+      for (const s of realSessions) {
+        const done = attendedBySession.get(s.id) ?? 0;
+        items.push({
+          key: `att:${s.id}`,
+          label: `Presensi ${s.name}`,
+          kind: "PRESENSI",
+          doneCount: done,
+          totalCount: mabaCount,
+          unitLabel: "Maba",
+          isComplete: mabaCount > 0 && done >= mabaCount,
+        });
+      }
 
-        if (groupParams.length > 0) {
-          const matGroups = groups.filter((g) => g.materialId === mat.id);
-          const done = matGroups.filter((g) => {
-            const scored = new Set(g.groupScores.map((s) => s.parameterId));
-            return groupParams.every((id) => scored.has(id));
-          }).length;
-          const assigned = new Set(matGroups.flatMap((g) => g.members.map((m) => m.studentId))).size;
-          // A group task isn't "lengkap" while some maba still has no kelompok.
-          const allAssigned = mabaCount > 0 && assigned >= mabaCount;
-          items.push({
-            key: `grp:${mat.id}`,
-            label: matGroups.length === 0 ? `Tugas Kelompok ${mat.name} (kelompok belum dibuat)` : `Tugas Kelompok ${mat.name}`,
-            kind: "KELOMPOK",
-            doneCount: done,
-            totalCount: Math.max(matGroups.length, 1),
-            unitLabel: "Kelompok",
-            isComplete: matGroups.length > 0 && done >= matGroups.length && allAssigned,
-          });
+      if (!act.isImportOnly) {
+        for (const mat of act.materials) {
+          const mentorParams = mat.parameters.filter((p) => p.inputMethod === InputMethod.MENTOR).map((p) => p.id);
+          const groupParams = mat.parameters.filter((p) => p.inputMethod === InputMethod.GROUP).map((p) => p.id);
+
+          if (mentorParams.length > 0) {
+            const done = scoredParamsByStudent.filter((set) => mentorParams.every((id) => set.has(id))).length;
+            items.push({
+              key: `mat:${mat.id}`,
+              label: `Penilaian ${mat.name}`,
+              kind: "NILAI",
+              doneCount: done,
+              totalCount: mabaCount,
+              unitLabel: "Maba",
+              isComplete: mabaCount > 0 && done >= mabaCount,
+            });
+          }
+
+          if (groupParams.length > 0) {
+            const matGroups = groups.filter((g) => g.materialId === mat.id);
+            const done = matGroups.filter((g) => {
+              const scored = new Set(g.groupScores.map((s) => s.parameterId));
+              return groupParams.every((id) => scored.has(id));
+            }).length;
+            const assigned = new Set(matGroups.flatMap((g) => g.members.map((m) => m.studentId))).size;
+            // A group task isn't "lengkap" while some maba still has no kelompok.
+            const allAssigned = mabaCount > 0 && assigned >= mabaCount;
+            items.push({
+              key: `grp:${mat.id}`,
+              label: matGroups.length === 0 ? `Tugas Kelompok ${mat.name} (kelompok belum dibuat)` : `Tugas Kelompok ${mat.name}`,
+              kind: "KELOMPOK",
+              doneCount: done,
+              totalCount: Math.max(matGroups.length, 1),
+              unitLabel: "Kelompok",
+              isComplete: matGroups.length > 0 && done >= matGroups.length && allAssigned,
+            });
+          }
         }
+      }
+
+      if (items.length > 0) result.push({ code: act.code, name: act.name, started, items });
+    }
+
+    let doneCount = 0;
+    let totalCount = 0;
+    const incompleteItems: UnitChecklist["incompleteItems"] = [];
+    for (const act of result) {
+      if (!act.started) continue;
+      for (const it of act.items) {
+        doneCount += Math.min(it.doneCount, it.totalCount);
+        totalCount += it.totalCount;
+        if (!it.isComplete) incompleteItems.push({ activityName: act.name, label: it.label });
       }
     }
 
-    if (items.length > 0) result.push({ code: act.code, name: act.name, started, items });
-  }
-
-  let doneCount = 0;
-  let totalCount = 0;
-  const incompleteItems: UnitChecklist["incompleteItems"] = [];
-  for (const act of result) {
-    if (!act.started) continue;
-    for (const it of act.items) {
-      doneCount += Math.min(it.doneCount, it.totalCount);
-      totalCount += it.totalCount;
-      if (!it.isComplete) incompleteItems.push({ activityName: act.name, label: it.label });
-    }
-  }
-
-  return {
-    unitCode: unit.code,
-    unitName: unit.name,
-    regionName: unit.region.name,
-    mentorName: unit.mentor?.name ?? null,
-    mabaCount,
-    activities: result,
-    doneCount,
-    totalCount,
-    pct: totalCount > 0 ? Math.floor((doneCount / totalCount) * 100) : 0,
-    incompleteItems,
-  };
+    return {
+      unitCode: unit.code,
+      unitName: unit.name,
+      regionName: unit.region.name,
+      mentorName: unit.mentor?.name ?? null,
+      mabaCount,
+      activities: result,
+      doneCount,
+      totalCount,
+      pct: totalCount > 0 ? Math.floor((doneCount / totalCount) * 100) : 0,
+      incompleteItems,
+    };
+  });
 }

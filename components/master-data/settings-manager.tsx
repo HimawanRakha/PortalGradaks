@@ -18,7 +18,8 @@ import {
   DEFAULT_TEMU_ABSENCE_THRESHOLD,
   DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD,
   DEFAULT_DATA_INSUFFICIENT_MESSAGE,
-  DEFAULT_REMINDER_MESSAGE_TEMPLATE,
+  DEFAULT_BROADCAST_REMINDER_TEMPLATE,
+  DEFAULT_BROADCAST_THANK_YOU_TEMPLATE,
   DEFAULT_ATTENDANCE_STATUS_SCORES,
   DEFAULT_ATTENDANCE_MAPPING,
   DEFAULT_PARTICIPATION_MAPPING,
@@ -37,6 +38,16 @@ const SUB_NILAI_OPTIONS = [
   { code: "C.1", label: "Problem Solving", group: "Kontribusi" },
   { code: "C.2", label: "Kepekaan Sosial", group: "Kontribusi" },
 ];
+
+function PlaceholderList({ names }: { names: string[] }) {
+  return (
+    <>
+      {names.map((name) => (
+        <code key={name} className="mr-1 font-mono">{`{{${name}}}`}</code>
+      ))}
+    </>
+  );
+}
 
 export function SettingsManager({ initialSettings }: { initialSettings: SettingData[] }) {
   const [pending, startTransition] = useTransition();
@@ -58,8 +69,12 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
     String(getSettingValue(SETTING_KEYS.dataInsufficientMessage, DEFAULT_DATA_INSUFFICIENT_MESSAGE)),
   );
 
-  const [reminderMessageTemplate, setReminderMessageTemplate] = useState(
-    String(getSettingValue(SETTING_KEYS.reminderMessageTemplate, DEFAULT_REMINDER_MESSAGE_TEMPLATE)),
+  const [broadcastFeedbackUrl, setBroadcastFeedbackUrl] = useState(String(getSettingValue(SETTING_KEYS.broadcastFeedbackUrl, "")));
+  const [broadcastReminderTemplate, setBroadcastReminderTemplate] = useState(
+    String(getSettingValue(SETTING_KEYS.broadcastReminderTemplate, DEFAULT_BROADCAST_REMINDER_TEMPLATE)),
+  );
+  const [broadcastThankYouTemplate, setBroadcastThankYouTemplate] = useState(
+    String(getSettingValue(SETTING_KEYS.broadcastThankYouTemplate, DEFAULT_BROADCAST_THANK_YOU_TEMPLATE)),
   );
 
   // Attendance Status Scores State
@@ -117,6 +132,12 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
   };
 
   const handleSave = () => {
+    const feedbackUrl = broadcastFeedbackUrl.trim();
+    if (feedbackUrl && !/^https?:\/\/\S+$/i.test(feedbackUrl)) {
+      toast.error("Link feedback harus diawali http:// atau https:// dan tidak boleh mengandung spasi.");
+      return;
+    }
+
     startTransition(async () => {
       const settings = {
         [SETTING_KEYS.calibrationThreshold]: Number(calibrationThreshold),
@@ -124,7 +145,11 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
         [SETTING_KEYS.temuAbsenceThreshold]: Number(temuAbsenceThreshold),
         [SETTING_KEYS.temuOfflineAbsenceThreshold]: Number(temuOfflineAbsenceThreshold),
         [SETTING_KEYS.dataInsufficientMessage]: dataInsufficientMessage,
-        [SETTING_KEYS.reminderMessageTemplate]: reminderMessageTemplate,
+        // A blank template would silently fall back to the default at send time
+        // while this form showed it empty — store the default so both agree.
+        [SETTING_KEYS.broadcastReminderTemplate]: broadcastReminderTemplate.trim() ? broadcastReminderTemplate : DEFAULT_BROADCAST_REMINDER_TEMPLATE,
+        [SETTING_KEYS.broadcastThankYouTemplate]: broadcastThankYouTemplate.trim() ? broadcastThankYouTemplate : DEFAULT_BROADCAST_THANK_YOU_TEMPLATE,
+        [SETTING_KEYS.broadcastFeedbackUrl]: feedbackUrl,
         [SETTING_KEYS.attendanceStatusScores]: {
           HADIR: Number(hadirScore),
           IZIN: Number(izinScore),
@@ -433,31 +458,87 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
           </CardContent>
         </Card>
 
-        {/* Reminder WhatsApp ke Mentor */}
+        {/* Broadcast WhatsApp (BC) ke Mentor */}
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <MessageSquare className="size-4 text-primary" />
-              Reminder WhatsApp ke Mentor
+              Broadcast WhatsApp (BC) ke Mentor
             </CardTitle>
             <CardDescription className="text-[10px]">
-              Dikirim manual dari tombol &ldquo;Kirim Reminder&rdquo; / &ldquo;Ingatkan Semua yang Belum Lengkap&rdquo; di halaman
-              Tracking Unit. Template di bawah ini yang dipakai untuk isi pesannya.
+              Dipakai di halaman Tracking Unit: tombol &ldquo;BC Reminder&rdquo; (unit belum lengkap) dan &ldquo;BC Terima
+              Kasih&rdquo; (unit sudah lengkap) membuka WhatsApp dengan pesan siap kirim — admin yang menekan kirim secara manual.
+              Daftar kegiatan yang belum lengkap diambil otomatis dari checklist yang sama dengan halaman Cek Unit.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5">
             <div className="grid gap-1.5">
-              <Label htmlFor="reminder-template">Template Pesan</Label>
-              <Textarea
-                id="reminder-template"
-                value={reminderMessageTemplate}
-                onChange={(e) => setReminderMessageTemplate(e.target.value)}
-                rows={3}
+              <Label htmlFor="broadcast-feedback-url">Link Feedback (untuk BC Terima Kasih)</Label>
+              <Input
+                id="broadcast-feedback-url"
+                type="url"
+                inputMode="url"
+                placeholder="https://forms.gle/..."
+                value={broadcastFeedbackUrl}
+                onChange={(e) => setBroadcastFeedbackUrl(e.target.value)}
+                className="h-8"
               />
               <span className="text-[10px] text-muted-foreground">
-                Placeholder yang tersedia: <code className="font-mono">{"{{mentorName}}"}</code>{" "}
-                <code className="font-mono">{"{{unitCode}}"}</code> <code className="font-mono">{"{{unitName}}"}</code>{" "}
-                <code className="font-mono">{"{{attPct}}"}</code> <code className="font-mono">{"{{scorePct}}"}</code>
+                Masuk ke placeholder <code className="font-mono">{"{{feedbackUrl}}"}</code> pada template terima kasih. Kosongkan bila
+                belum ada — paragraf yang memuat placeholder kosong otomatis dihilangkan dari pesan.
+              </span>
+            </div>
+
+            <div className="grid gap-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="broadcast-reminder-template">Template BC Reminder (unit belum lengkap)</Label>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => setBroadcastReminderTemplate(DEFAULT_BROADCAST_REMINDER_TEMPLATE)}
+                >
+                  Pakai template bawaan
+                </Button>
+              </div>
+              <Textarea
+                id="broadcast-reminder-template"
+                value={broadcastReminderTemplate}
+                onChange={(e) => setBroadcastReminderTemplate(e.target.value)}
+                rows={8}
+              />
+              <span className="text-[10px] text-muted-foreground">
+                Placeholder: <PlaceholderList names={["mentorName", "unitCode", "unitName", "pct", "incompleteCount", "incompleteList"]} />
+                — <code className="font-mono">{"{{incompleteList}}"}</code> berisi daftar kegiatan beserta item yang belum lengkap.
+              </span>
+              {!broadcastReminderTemplate.includes("{{incompleteList}}") ? (
+                <span className="text-[10px] text-amber-600 dark:text-amber-400">
+                  Template ini tidak memuat <code className="font-mono">{"{{incompleteList}}"}</code>, jadi rincian kegiatan yang
+                  belum lengkap tidak akan muncul di pesan.
+                </span>
+              ) : null}
+            </div>
+
+            <div className="grid gap-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="broadcast-thank-you-template">Template BC Terima Kasih (unit sudah lengkap)</Label>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  onClick={() => setBroadcastThankYouTemplate(DEFAULT_BROADCAST_THANK_YOU_TEMPLATE)}
+                >
+                  Pakai template bawaan
+                </Button>
+              </div>
+              <Textarea
+                id="broadcast-thank-you-template"
+                value={broadcastThankYouTemplate}
+                onChange={(e) => setBroadcastThankYouTemplate(e.target.value)}
+                rows={8}
+              />
+              <span className="text-[10px] text-muted-foreground">
+                Placeholder: <PlaceholderList names={["mentorName", "unitCode", "unitName", "pct", "feedbackUrl"]} />
               </span>
             </div>
           </CardContent>

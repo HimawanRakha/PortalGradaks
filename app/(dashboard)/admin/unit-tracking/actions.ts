@@ -1,53 +1,51 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { unstable_rethrow } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
-import { Role } from "@/app/generated/prisma/enums";
-import { getUnitProgressList } from "@/lib/scoring/unit-progress";
-import { sendReminderForUnitProgress, sendUnitReminderById, sleep, REMINDER_SEND_DELAY_MS } from "@/lib/reminder/service";
+import { ReminderStatus, ReminderTrigger, Role } from "@/app/generated/prisma/enums";
 
-type ActionResult = { ok: true; summary?: string } | { ok: false; error: string };
+type ActionResult = { ok: true; at: string } | { ok: false; error: string };
 
-export async function sendUnitReminderAction(unitId: string): Promise<ActionResult> {
+const MAX_LOGGED_MESSAGE_LENGTH = 4000;
+
+/**
+ * Notes that admin opened (or copied) the BC for a unit, which feeds the
+ * "BC terakhir dibuka" caption on the Tracking Unit page so a manual
+ * broadcast round doesn't double-ping the same mentor. Opening WhatsApp
+ * can't prove the message was actually sent from there, hence "dibuka" —
+ * and there's deliberately no revalidatePath: the caller updates the
+ * caption itself, because re-running that page's heavy query once per
+ * click would make working through a whole queue slow.
+ */
+export async function recordBroadcastAction(unitId: string, message: string): Promise<ActionResult> {
   try {
     const user = await assertRole(Role.ADMIN);
-    const result = await sendUnitReminderById(unitId, "MANUAL", user.id);
-    revalidatePath("/admin/unit-tracking");
-    if (!result.ok) return { ok: false, error: result.error };
-    return { ok: true, summary: "Reminder terkirim." };
-  } catch (error) {
-    unstable_rethrow(error);
-    return { ok: false, error: error instanceof Error ? error.message : "Gagal mengirim reminder." };
-  }
-}
-
-export async function sendBulkIncompleteRemindersAction(): Promise<ActionResult> {
-  try {
-    const user = await assertRole(Role.ADMIN);
-    const units = await getUnitProgressList();
-    const incomplete = units.filter((u) => !u.isComplete);
-
-    if (incomplete.length === 0) {
-      return { ok: true, summary: "Tidak ada unit yang belum lengkap saat ini — tidak ada reminder yang dikirim." };
+    if (typeof unitId !== "string" || typeof message !== "string") {
+      return { ok: false, error: "Permintaan tidak valid." };
     }
 
-    let sent = 0;
-    let failed = 0;
-    for (let i = 0; i < incomplete.length; i++) {
-      if (i > 0) await sleep(REMINDER_SEND_DELAY_MS); // pace sends — see comment on REMINDER_SEND_DELAY_MS
-      const result = await sendReminderForUnitProgress(incomplete[i], "MANUAL", user.id);
-      if (result.ok) sent++;
-      else failed++;
-    }
+    const unit = await prisma.unit.findUnique({
+      where: { id: unitId },
+      select: { id: true, mentor: { select: { id: true, phone: true } } },
+    });
+    if (!unit) return { ok: false, error: "Unit tidak ditemukan." };
 
-    revalidatePath("/admin/unit-tracking");
-    return {
-      ok: true,
-      summary: `Reminder terkirim ke ${sent} dari ${incomplete.length} unit yang belum lengkap${failed > 0 ? ` (${failed} gagal — cek nomor WA mentor)` : ""}.`,
-    };
+    const log = await prisma.reminderLog.create({
+      data: {
+        unitId: unit.id,
+        mentorId: unit.mentor?.id ?? null,
+        phoneSnapshot: unit.mentor?.phone ?? null,
+        message: message.slice(0, MAX_LOGGED_MESSAGE_LENGTH),
+        status: ReminderStatus.SENT,
+        trigger: ReminderTrigger.MANUAL,
+        triggeredByUserId: user.id,
+      },
+      select: { createdAt: true },
+    });
+    return { ok: true, at: log.createdAt.toISOString() };
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: error instanceof Error ? error.message : "Gagal mengirim reminder massal." };
+    return { ok: false, error: error instanceof Error ? error.message : "Gagal mencatat BC." };
   }
 }

@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import {
@@ -15,9 +14,9 @@ import {
   Users,
   BarChart3,
   Calendar,
-  Send,
   BellRing,
-  Loader2,
+  HeartHandshake,
+  MessageCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -25,7 +24,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { sendUnitReminderAction, sendBulkIncompleteRemindersAction } from "@/app/(dashboard)/admin/unit-tracking/actions";
+import type { UnitBroadcast } from "@/lib/broadcast/message";
+import { BroadcastDialog, type BroadcastEntry, type BroadcastView } from "@/components/admin/broadcast-dialog";
 
 export type SessionAttendanceInfo = {
   sessionId: string;
@@ -55,7 +55,10 @@ export type UnitTrackingItem = {
   mentorName: string | null;
   mentorNrp: string | null;
   mentorPhone: string | null;
-  lastReminder: { status: string; at: string } | null;
+  /** ISO time admin last opened/copied a BC for this unit (see recordBroadcastAction). */
+  lastBroadcastAt: string | null;
+  /** Reminder vs thank-you BC from the /cek-unit checklist; null while no activity has started. */
+  broadcast: UnitBroadcast | null;
   mabaCount: number;
   students: StudentTrackingInfo[];
   activityMetrics: Record<
@@ -88,11 +91,13 @@ export function UnitTrackingMatrix({
   regions,
   units,
   defaultActivityCode,
+  feedbackUrlConfigured,
 }: {
   activities: ActivityOption[];
   regions: RegionOption[];
   units: UnitTrackingItem[];
   defaultActivityCode: string;
+  feedbackUrlConfigured: boolean;
 }) {
   const [selectedActivity, setSelectedActivity] = useState<string>(defaultActivityCode || "ALL");
   const [selectedRegion, setSelectedRegion] = useState<string>("ALL");
@@ -100,28 +105,38 @@ export function UnitTrackingMatrix({
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedUnitId, setExpandedUnitId] = useState<string | null>(null);
 
-  const [isPending, startTransition] = useTransition();
-  const [sendingUnitId, setSendingUnitId] = useState<string | null>(null);
-  const [bulkSending, setBulkSending] = useState(false);
+  // The view outlives `broadcastOpen` so the dialog keeps its content while it
+  // plays the close animation instead of going blank.
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [broadcastView, setBroadcastView] = useState<BroadcastView | null>(null);
+  // Optimistic "BC terakhir dibuka" captions for units opened since the page loaded.
+  const [lastBroadcastOverrides, setLastBroadcastOverrides] = useState<Record<string, string>>({});
 
-  const handleSendReminder = (unitId: string) => {
-    setSendingUnitId(unitId);
-    startTransition(async () => {
-      const res = await sendUnitReminderAction(unitId);
-      if (res.ok) toast.success(res.summary || "Reminder terkirim.");
-      else toast.error(res.error);
-      setSendingUnitId(null);
-    });
+  const toBroadcastEntry = (unit: UnitTrackingItem): BroadcastEntry | null =>
+    unit.broadcast
+      ? {
+          unitId: unit.id,
+          unitCode: unit.code,
+          unitName: unit.name,
+          mentorName: unit.mentorName,
+          mentorPhone: unit.mentorPhone,
+          kind: unit.broadcast.kind,
+          incompleteCount: unit.broadcast.incompleteCount,
+          message: unit.broadcast.message,
+        }
+      : null;
+
+  const openUnitBroadcast = (unit: UnitTrackingItem) => {
+    const entry = toBroadcastEntry(unit);
+    if (!entry) return;
+    setBroadcastView({ mode: "single", entries: [entry] });
+    setBroadcastOpen(true);
   };
 
-  const handleSendBulkReminders = () => {
-    setBulkSending(true);
-    startTransition(async () => {
-      const res = await sendBulkIncompleteRemindersAction();
-      if (res.ok) toast.success(res.summary || "Reminder massal terkirim.");
-      else toast.error(res.error);
-      setBulkSending(false);
-    });
+  const openBroadcastList = () => {
+    const entries = filteredUnits.map(toBroadcastEntry).filter((e): e is BroadcastEntry => e !== null);
+    setBroadcastView({ mode: "list", entries, skippedCount: filteredUnits.length - entries.length });
+    setBroadcastOpen(true);
   };
 
   // Filter units based on region, search query, and calculated status
@@ -194,6 +209,7 @@ export function UnitTrackingMatrix({
   const avgScorePct = nationalScoreTotal > 0 ? Math.round((nationalScoreDone / nationalScoreTotal) * 100) : 0;
 
   const currentActivityObj = activities.find((a) => a.code === selectedActivity);
+  const broadcastableCount = filteredUnits.filter((u) => u.broadcast).length;
 
   return (
     <div className="space-y-6 text-xs">
@@ -340,9 +356,9 @@ export function UnitTrackingMatrix({
               <span className="text-xs font-normal text-muted-foreground">
                 Menampilkan {filteredUnits.length} dari {units.length} unit
               </span>
-              <Button size="xs" variant="outline" disabled={isPending} onClick={handleSendBulkReminders}>
-                {bulkSending ? <Loader2 className="size-3 animate-spin" /> : <BellRing className="size-3" />}
-                Ingatkan Semua yang Belum Lengkap
+              <Button size="xs" variant="outline" disabled={broadcastableCount === 0} onClick={openBroadcastList}>
+                <MessageCircle className="size-3" />
+                Daftar BC WhatsApp ({broadcastableCount})
               </Button>
             </div>
           </CardTitle>
@@ -397,6 +413,7 @@ export function UnitTrackingMatrix({
                     const isExpanded = expandedUnitId === unit.id;
                     const isComplete = attPct >= 100 && (scoreTotal === 0 || scorePct >= 100);
                     const isNotStarted = attPct === 0 && scorePct === 0;
+                    const lastBroadcastAt = lastBroadcastOverrides[unit.id] ?? unit.lastBroadcastAt;
 
                     return (
                       <React.Fragment key={unit.id}>
@@ -425,10 +442,9 @@ export function UnitTrackingMatrix({
                                   Mentor: <span className="font-medium text-foreground">{unit.mentorName || "Belum ditugaskan"}</span>
                                   {unit.mentorNrp ? ` (${unit.mentorNrp})` : ""}
                                 </p>
-                                {unit.lastReminder ? (
+                                {lastBroadcastAt ? (
                                   <p className="text-[10px] text-muted-foreground">
-                                    Reminder terakhir: {formatDistanceToNow(new Date(unit.lastReminder.at), { addSuffix: true, locale: idLocale })}
-                                    {unit.lastReminder.status === "FAILED" ? " (gagal terkirim)" : ""}
+                                    BC terakhir dibuka: {formatDistanceToNow(new Date(lastBroadcastAt), { addSuffix: true, locale: idLocale })}
                                   </p>
                                 ) : null}
                               </div>
@@ -475,22 +491,21 @@ export function UnitTrackingMatrix({
                                   <Clock className="size-3" /> Proses
                                 </span>
                               )}
-                              {!isComplete ? (
+                              {unit.broadcast ? (
                                 <Button
                                   size="xs"
                                   variant="outline"
-                                  disabled={isPending}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleSendReminder(unit.id);
+                                    openUnitBroadcast(unit);
                                   }}
                                 >
-                                  {isPending && sendingUnitId === unit.id ? (
-                                    <Loader2 className="size-3 animate-spin" />
+                                  {unit.broadcast.kind === "REMINDER" ? (
+                                    <BellRing className="size-3" />
                                   ) : (
-                                    <Send className="size-3" />
+                                    <HeartHandshake className="size-3" />
                                   )}
-                                  Kirim Reminder
+                                  {unit.broadcast.kind === "REMINDER" ? "BC Reminder" : "BC Terima Kasih"}
                                 </Button>
                               ) : null}
                             </div>
@@ -690,6 +705,14 @@ export function UnitTrackingMatrix({
           </div>
         </CardContent>
       </Card>
+
+      <BroadcastDialog
+        open={broadcastOpen}
+        onOpenChange={setBroadcastOpen}
+        view={broadcastView}
+        feedbackUrlConfigured={feedbackUrlConfigured}
+        onRecorded={(unitId, at) => setLastBroadcastOverrides((prev) => ({ ...prev, [unitId]: at }))}
+      />
     </div>
   );
 }

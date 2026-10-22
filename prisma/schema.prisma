@@ -191,10 +191,11 @@ model User {
   name         String
   passwordHash String
   role         Role
-  /// WhatsApp contact number (any format — normalized at send time), used to
-  /// deliver mentor reminders. Nullable/generic on User rather than
-  /// Mentor-only: only mentors are reminded today, but nothing else about
-  /// this field is mentor-specific. See lib/whatsapp/fonnte.ts.
+  /// WhatsApp contact number (any format — normalized when the wa.me link is
+  /// built), used to open a chat with the mentor for BC reminders/thank-yous.
+  /// Nullable/generic on User rather than Mentor-only: only mentors are
+  /// messaged today, but nothing else about this field is mentor-specific.
+  /// See lib/broadcast/whatsapp.ts.
   phone        String?
   department   Department? @relation(fields: [departmentId], references: [id])
   departmentId String?
@@ -813,14 +814,15 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-/// One row per WhatsApp reminder attempt (success or failure) nudging a
-/// unit's mentor to finish attendance/scoring input — sent manually from
-/// the Tracking Unit page (single-unit button or bulk "Ingatkan Semua").
+/// One row each time admin opens or copies a WhatsApp BC (reminder or
+/// thank-you) for a unit from the Tracking Unit page — the page's "BC
+/// terakhir dibuka" caption reads it. The send itself happens by hand in
+/// WhatsApp, so new rows are always SENT ("opened"); FAILED rows with an
+/// errorReason are only left over from the retired Fonnte auto-send.
 /// Deliberately its own table rather than folded into AuditLog:
 /// AuditAction's CREATE/UPDATE/TRANSFER vocabulary doesn't model "a message
-/// was sent." mentorId/phoneSnapshot are nullable so a failed attempt (no
-/// mentor assigned, or mentor has no phone on file) is still logged with a
-/// reason, visible to whoever's auditing why a unit was never reminded.
+/// was sent." mentorId/phoneSnapshot are nullable (no mentor assigned, or no
+/// phone on file).
 model ReminderLog {
   id                String          @id @default(cuid())
   unit              Unit            @relation(fields: [unitId], references: [id])
