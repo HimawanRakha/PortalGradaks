@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Loader2, Save, AlertCircle, MessageSquare, CheckSquare, Plus, Trash2 } from "lucide-react";
+import { Loader2, Save, AlertCircle, MessageSquare, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,13 +16,14 @@ import { updateSettingsAction } from "@/app/(dashboard)/admin/master-data/action
 import {
   SETTING_KEYS,
   DEFAULT_TEMU_ABSENCE_THRESHOLD,
-  DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD,
+  DEFAULT_KEGIATAN_BESAR_ABSENCE_THRESHOLD,
   DEFAULT_DATA_INSUFFICIENT_MESSAGE,
   DEFAULT_BROADCAST_REMINDER_TEMPLATE,
   DEFAULT_BROADCAST_THANK_YOU_TEMPLATE,
   DEFAULT_ATTENDANCE_STATUS_SCORES,
-  DEFAULT_ATTENDANCE_MAPPING,
   DEFAULT_PARTICIPATION_MAPPING,
+  DEFAULT_PERSONAL_COMPONENT_WEIGHTS,
+  DEFAULT_SKILL_COMPONENT_WEIGHTS,
 } from "@/lib/scoring/setting-keys";
 
 type SettingData = {
@@ -37,6 +38,18 @@ const SUB_NILAI_OPTIONS = [
   { code: "B.2", label: "Kerja Sama", group: "Kolaborasi" },
   { code: "C.1", label: "Problem Solving", group: "Kontribusi" },
   { code: "C.2", label: "Kepekaan Sosial", group: "Kontribusi" },
+];
+
+const PERSONAL_WEIGHT_FIELDS = [
+  { key: "temuFteic", label: "Kehadiran Temu FTEIC" },
+  { key: "kegiatanBesar", label: "Kehadiran Kegiatan Besar" },
+  { key: "inclenation", label: "Kehadiran Inclenation" },
+  { key: "materi", label: "Penilaian Materi" },
+];
+
+const SKILL_WEIGHT_FIELDS = [
+  { key: "kegiatan", label: "Kegiatan Keahlian" },
+  { key: "mentor", label: "Evaluasi Mentor" },
 ];
 
 function PlaceholderList({ names }: { names: string[] }) {
@@ -62,8 +75,8 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
   const [temuAbsenceThreshold, setTemuAbsenceThreshold] = useState(
     String(getSettingValue(SETTING_KEYS.temuAbsenceThreshold, DEFAULT_TEMU_ABSENCE_THRESHOLD)),
   );
-  const [temuOfflineAbsenceThreshold, setTemuOfflineAbsenceThreshold] = useState(
-    String(getSettingValue(SETTING_KEYS.temuOfflineAbsenceThreshold, DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD)),
+  const [kegiatanBesarAbsenceThreshold, setKegiatanBesarAbsenceThreshold] = useState(
+    String(getSettingValue(SETTING_KEYS.kegiatanBesarAbsenceThreshold, DEFAULT_KEGIATAN_BESAR_ABSENCE_THRESHOLD)),
   );
   const [dataInsufficientMessage, setDataInsufficientMessage] = useState(
     String(getSettingValue(SETTING_KEYS.dataInsufficientMessage, DEFAULT_DATA_INSUFFICIENT_MESSAGE)),
@@ -83,51 +96,25 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
   const [izinScore, setIzinScore] = useState(String(initialStatusScores.IZIN ?? 50));
   const [alpaScore, setAlpaScore] = useState(String(initialStatusScores.ALPA ?? 0));
 
-  // Attendance Mapping State: Record<sessionCode, subCode[]>
-  const initialMapping = getSettingValue(SETTING_KEYS.attendanceMapping, DEFAULT_ATTENDANCE_MAPPING);
-  const [attendanceMapping, setAttendanceMapping] = useState<Record<string, string[]>>(initialMapping);
-  const [newSessionCode, setNewSessionCode] = useState("");
+  // Nilai Personal / Keahlian component weights (see calculate.ts)
+  const initialPersonalWeights = { ...DEFAULT_PERSONAL_COMPONENT_WEIGHTS, ...getSettingValue(SETTING_KEYS.personalComponentWeights, {}) };
+  const [personalWeights, setPersonalWeights] = useState<Record<string, string>>(
+    Object.fromEntries(Object.entries(initialPersonalWeights).map(([k, v]) => [k, String(v)])),
+  );
+  const initialSkillWeights = { ...DEFAULT_SKILL_COMPONENT_WEIGHTS, ...getSettingValue(SETTING_KEYS.skillComponentWeights, {}) };
+  const [skillWeights, setSkillWeights] = useState<Record<string, string>>(
+    Object.fromEntries(Object.entries(initialSkillWeights).map(([k, v]) => [k, String(v)])),
+  );
 
   // Participation Mapping State: Record<sessionCode, subCode[]> (DEFAULT is fallback for regular sessions)
   const initialPartMapping = getSettingValue(SETTING_KEYS.participationMapping, DEFAULT_PARTICIPATION_MAPPING);
   const [participationMapping, setParticipationMapping] = useState<Record<string, string[]>>(initialPartMapping);
-
-  const handleToggleMapping = (sessionCode: string, subCode: string) => {
-    setAttendanceMapping((prev) => {
-      const current = prev[sessionCode] || [];
-      const updated = current.includes(subCode) ? current.filter((x) => x !== subCode) : [...current, subCode];
-      return { ...prev, [sessionCode]: updated };
-    });
-  };
 
   const handleTogglePartMapping = (sessionCode: string, subCode: string) => {
     setParticipationMapping((prev) => {
       const current = prev[sessionCode] || [];
       const updated = current.includes(subCode) ? current.filter((x) => x !== subCode) : [...current, subCode];
       return { ...prev, [sessionCode]: updated };
-    });
-  };
-
-  const handleAddSessionMapping = () => {
-    const code = newSessionCode.trim().toUpperCase();
-    if (!code) {
-      toast.error("Masukkan kode sesi terlebih dahulu.");
-      return;
-    }
-    if (attendanceMapping[code]) {
-      toast.error(`Kode sesi "${code}" sudah ada dalam pemetaan.`);
-      return;
-    }
-    setAttendanceMapping((prev) => ({ ...prev, [code]: ["A.1"] }));
-    setNewSessionCode("");
-    toast.success(`Sesi "${code}" berhasil ditambahkan ke pemetaan.`);
-  };
-
-  const handleRemoveSessionMapping = (code: string) => {
-    setAttendanceMapping((prev) => {
-      const next = { ...prev };
-      delete next[code];
-      return next;
     });
   };
 
@@ -143,7 +130,7 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
         [SETTING_KEYS.calibrationThreshold]: Number(calibrationThreshold),
         [SETTING_KEYS.damenEnabled]: damenEnabled,
         [SETTING_KEYS.temuAbsenceThreshold]: Number(temuAbsenceThreshold),
-        [SETTING_KEYS.temuOfflineAbsenceThreshold]: Number(temuOfflineAbsenceThreshold),
+        [SETTING_KEYS.kegiatanBesarAbsenceThreshold]: Number(kegiatanBesarAbsenceThreshold),
         [SETTING_KEYS.dataInsufficientMessage]: dataInsufficientMessage,
         // A blank template would silently fall back to the default at send time
         // while this form showed it empty — store the default so both agree.
@@ -155,8 +142,9 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
           IZIN: Number(izinScore),
           ALPA: Number(alpaScore),
         },
-        [SETTING_KEYS.attendanceMapping]: attendanceMapping,
         [SETTING_KEYS.participationMapping]: participationMapping,
+        [SETTING_KEYS.personalComponentWeights]: Object.fromEntries(Object.entries(personalWeights).map(([k, v]) => [k, Number(v)])),
+        [SETTING_KEYS.skillComponentWeights]: Object.fromEntries(Object.entries(skillWeights).map(([k, v]) => [k, Number(v)])),
       };
 
       const res = await updateSettingsAction(settings);
@@ -231,84 +219,48 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
               </div>
             </div>
 
-            {/* Session Sub-Nilai Mapping Table */}
+            {/* Component weights */}
             <div className="space-y-3 pt-2">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <h4 className="font-semibold text-xs text-foreground">2. Pemetaan Status Kehadiran (HADIR/IZIN/ALPA) ke Sub-Nilai</h4>
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    placeholder="Kode Sesi Baru (misal: TEMU_1)"
-                    value={newSessionCode}
-                    onChange={(e) => setNewSessionCode(e.target.value)}
-                    className="h-7 text-xs font-mono w-48"
-                  />
-                  <Button size="xs" variant="outline" onClick={handleAddSessionMapping}>
-                    <Plus className="size-3" /> Tambah Sesi
-                  </Button>
-                </div>
+              <h4 className="font-semibold text-xs text-foreground">2. Bobot Komponen Nilai</h4>
+              <p className="text-[10px] text-muted-foreground">
+                Nilai Personal = gabungan berbobot kehadiran (objektif) dan Penilaian Materi dari mentor/kuis. Komponen yang belum
+                punya data otomatis tidak dihitung dan bobot sisanya dinormalisasi ulang.
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {PERSONAL_WEIGHT_FIELDS.map((f) => (
+                  <div key={f.key} className="grid gap-1 rounded-lg border bg-background p-2">
+                    <Label htmlFor={`pw-${f.key}`} className="text-[11px] font-medium">{f.label}</Label>
+                    <Input
+                      id={`pw-${f.key}`}
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      value={personalWeights[f.key] ?? ""}
+                      onChange={(e) => setPersonalWeights((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                      className="h-7 text-xs font-mono font-bold"
+                    />
+                  </div>
+                ))}
               </div>
-
-              <div className="overflow-x-auto rounded-lg border bg-background">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-muted/50 border-b text-muted-foreground font-medium text-[11px]">
-                      <th className="p-2.5 w-36">Kode Sesi</th>
-                      <th className="p-2.5">Tujuan Sub-Nilai Personal (Status Presensi)</th>
-                      <th className="p-2.5 w-16 text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {Object.keys(attendanceMapping).length === 0 ? (
-                      <tr>
-                        <td colSpan={3} className="p-4 text-center text-muted-foreground">Belum ada pemetaan sesi.</td>
-                      </tr>
-                    ) : (
-                      Object.entries(attendanceMapping).map(([code, targets]) => (
-                        <tr key={code} className="hover:bg-muted/20">
-                          <td className="p-2.5 font-mono font-bold">
-                            <span className="bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 rounded">
-                              {code}
-                            </span>
-                          </td>
-                          <td className="p-2.5">
-                            <div className="flex items-center gap-4 flex-wrap">
-                              {SUB_NILAI_OPTIONS.map((sub) => {
-                                const checked = targets.includes(sub.code);
-                                return (
-                                  <label
-                                    key={sub.code}
-                                    className={`flex items-center gap-1.5 px-2 py-1 rounded border cursor-pointer select-none text-[11px] transition-colors ${
-                                      checked ? "bg-primary/10 border-primary/30 font-semibold text-primary" : "bg-muted/10 border-muted text-muted-foreground hover:bg-muted/30"
-                                    }`}
-                                  >
-                                    <Checkbox
-                                      checked={checked}
-                                      onCheckedChange={() => handleToggleMapping(code, sub.code)}
-                                      className="size-3.5"
-                                    />
-                                    <span>
-                                      <strong className="font-mono">{sub.code}</strong> {sub.label}
-                                    </span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </td>
-                          <td className="p-2.5 text-right">
-                            <Button
-                              size="xs"
-                              variant="ghost"
-                              className="text-destructive hover:bg-destructive/10"
-                              onClick={() => handleRemoveSessionMapping(code)}
-                            >
-                              <Trash2 className="size-3" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+              <p className="text-[10px] text-muted-foreground">
+                Nilai Keahlian per kategori: evaluasi mentor digabung dengan Kegiatan Keahlian — ikut minimal 1 kegiatan di
+                kategori itu = porsi kegiatan 100, tidak ikut = 0 (berlaku setelah kategori itu punya kegiatan).
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {SKILL_WEIGHT_FIELDS.map((f) => (
+                  <div key={f.key} className="grid gap-1 rounded-lg border bg-background p-2">
+                    <Label htmlFor={`sw-${f.key}`} className="text-[11px] font-medium">{f.label}</Label>
+                    <Input
+                      id={`sw-${f.key}`}
+                      type="number"
+                      step="0.05"
+                      min="0"
+                      value={skillWeights[f.key] ?? ""}
+                      onChange={(e) => setSkillWeights((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                      className="h-7 text-xs font-mono font-bold"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -412,10 +364,10 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
           <CardHeader>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <AlertCircle className="size-4 text-primary" />
-              Gate Presensi Temu FTEIC (&ldquo;Tidak Dapat Diagregasi&rdquo;)
+              Gate Presensi (&ldquo;Tidak Dapat Diagregasi&rdquo;)
             </CardTitle>
             <CardDescription className="text-[10px]">
-              Maba yang melampaui kedua ambang ini tetap tampil nilainya di raport, tapi statusnya berubah menjadi &ldquo;Tidak Dapat
+              Maba yang melampaui salah satu ambang ini tetap tampil nilainya di raport, tapi statusnya berubah menjadi &ldquo;Tidak Dapat
               Diagregasi&rdquo; dan tidak dievaluasi oleh Rule Rekomendasi — datanya diserahkan ke HMD untuk pendampingan lebih lanjut.
             </CardDescription>
           </CardHeader>
@@ -431,20 +383,20 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
                 onChange={(e) => setTemuAbsenceThreshold(e.target.value)}
                 className="h-8"
               />
-              <span className="text-[10px] text-muted-foreground">Jumlah absen (izin/alpa) di seluruh sesi Temu FTEIC sebelum gate aktif (default: 2).</span>
+              <span className="text-[10px] text-muted-foreground">Jumlah absen (izin/alpa) di seluruh sesi Temu FTEIC sebelum gate aktif (default: 2). Temu FTEIC 2 (kuis) dihitung hadir bila nilainya ada &gt; 0.</span>
             </div>
             <div className="grid gap-1.5">
-              <Label htmlFor="temu-offline-absence-thresh">Ambang Absen Sesi Offline Temu FTEIC (lebih dari)</Label>
+              <Label htmlFor="besar-absence-thresh">Ambang Absen Kegiatan Besar (lebih dari)</Label>
               <Input
-                id="temu-offline-absence-thresh"
+                id="besar-absence-thresh"
                 type="number"
                 min="0"
                 step="1"
-                value={temuOfflineAbsenceThreshold}
-                onChange={(e) => setTemuOfflineAbsenceThreshold(e.target.value)}
+                value={kegiatanBesarAbsenceThreshold}
+                onChange={(e) => setKegiatanBesarAbsenceThreshold(e.target.value)}
                 className="h-8"
               />
-              <span className="text-[10px] text-muted-foreground">Jumlah absen (izin/alpa) khusus di sesi offline Temu FTEIC sebelum gate aktif (default: 1).</span>
+              <span className="text-[10px] text-muted-foreground">Jumlah absen (izin/alpa) di Pesraf/Soscom/Arus Emas 1-3/Compex sebelum gate aktif (default: 2 → wajib hadir 4 dari 6).</span>
             </div>
             <div className="grid gap-1.5 md:col-span-2">
               <Label htmlFor="data-insufficient-msg">Pesan Peringatan (tampil di raport maba)</Label>

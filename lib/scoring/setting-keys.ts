@@ -8,18 +8,19 @@ export const SETTING_KEYS = {
   calibrationThreshold: "calibration.deviationThreshold",
   damenEnabled: "verification.damenEnabled",
   temuAbsenceThreshold: "attendance.temuAbsenceThreshold",
-  temuOfflineAbsenceThreshold: "attendance.temuOfflineAbsenceThreshold",
+  kegiatanBesarAbsenceThreshold: "attendance.kegiatanBesarAbsenceThreshold",
   dataInsufficientMessage: "attendance.dataInsufficientMessage",
   broadcastReminderTemplate: "broadcast.reminderTemplate",
   broadcastThankYouTemplate: "broadcast.thankYouTemplate",
   broadcastFeedbackUrl: "broadcast.feedbackUrl",
   attendanceStatusScores: "attendance.statusScores",
-  attendanceMapping: "attendance.mapping",
   participationMapping: "attendance.participationMapping",
+  personalComponentWeights: "weights.personalComponents",
+  skillComponentWeights: "weights.skillComponents",
 } as const;
 
 export const DEFAULT_TEMU_ABSENCE_THRESHOLD = 2;
-export const DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD = 1;
+export const DEFAULT_KEGIATAN_BESAR_ABSENCE_THRESHOLD = 2;
 export const DEFAULT_DATA_INSUFFICIENT_MESSAGE =
   "Data Anda tidak dapat diagregasi karena kekurangan kehadiran dan nilai, sehingga tidak masuk ke dalam pengolahan. Seluruh data pengembangan Anda akan diberikan kepada HMD untuk pengembangan lebih lanjut.";
 
@@ -48,15 +49,30 @@ export const DEFAULT_ATTENDANCE_STATUS_SCORES = {
   ALPA: 0,
 };
 
-export const DEFAULT_ATTENDANCE_MAPPING: Record<string, string[]> = {
-  PESRAF: ["A.1"],
-  DIESNAT: ["A.2"],
-  ARUS_EMAS: ["A.1", "A.2"],
-  SOSCOM: ["A.1", "B.2", "C.2"],
-  COMPANY_EXPO: ["B.1", "C.2"],
-  COMPEX: ["B.1", "C.2"],
-};
-
 export const DEFAULT_PARTICIPATION_MAPPING: Record<string, string[]> = {
   DEFAULT: ["B.2", "C.1"],
+};
+
+/**
+ * Nilai Personal = weighted blend of the three objective attendance sections
+ * and the (more subjective) mentor/quiz materi score — attendance dominates
+ * on purpose so a maba who skips activities can't be carried by mentor
+ * rubric scores alone. A component with no held sessions yet is dropped and
+ * the rest re-normalized (see calculate.ts).
+ */
+export const DEFAULT_PERSONAL_COMPONENT_WEIGHTS = {
+  temuFteic: 0.25,
+  kegiatanBesar: 0.25,
+  inclenation: 0.1,
+  materi: 0.4,
+};
+
+/**
+ * Per Nilai Keahlian category: mentor logbook evaluation blended with
+ * Kegiatan Keahlian — joining ≥1 kegiatan in the category scores 100 for the
+ * kegiatan half, joining none scores 0 (once that category has any kegiatan).
+ */
+export const DEFAULT_SKILL_COMPONENT_WEIGHTS = {
+  kegiatan: 0.2,
+  mentor: 0.8,
 };

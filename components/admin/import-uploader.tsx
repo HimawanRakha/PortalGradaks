@@ -55,10 +55,16 @@ const SCHEMAS: Record<ImportType, { title: string; cols: string[]; desc: string;
     sample: "nrp,activity_code,material_code,parameter_subcode,value\n2512345678,INCLENATION,MARS_ELECTICS,A.2,4",
   },
   [ImportType.PROKER]: {
-    title: "Presensi Proker Fakultas",
-    cols: ["nrp", "session_code", "status"],
-    desc: "Mengimpor data kehadiran maba di proker fakultas (PESRAF, ARUS_EMAS, SOSCOM, DIESNAT).",
-    sample: "nrp,session_code,status\n2512345678,PESRAF,HADIR\n2598765432,PESRAF,ALPA\n2512345678,ARUS_EMAS,IZIN",
+    title: "Presensi Kegiatan Besar",
+    cols: ["nrp", "session_code", "status", "arus_ke"],
+    desc: "Kehadiran wajib maba di Kegiatan Besar: PESRAF, SOSCOM, ARUS_EMAS, COMPEX. Khusus ARUS_EMAS isi arus_ke (1/2/3) — impor ulang dengan arus_ke yang sama memperbarui data arus tersebut. Nilai sub SOSCOM (Kreativitas & Kepekaan Sosial, skala 0-10) diimpor lewat jenis \"Nilai Post-test\" dengan activity_code PROKER, material_code SOSCOM, parameter_subcode C.1_SOSCOM / C.2_SOSCOM.",
+    sample: "nrp,session_code,status,arus_ke\n2512345678,PESRAF,HADIR,\n2598765432,COMPEX,ALPA,\n2512345678,ARUS_EMAS,HADIR,2",
+  },
+  [ImportType.KEAHLIAN]: {
+    title: "Presensi Kegiatan Keahlian",
+    cols: ["nrp", "kode_kegiatan", "nama_kegiatan", "kategori", "status"],
+    desc: "Kehadiran kegiatan keahlian opsional. kategori = M (Manajerial) / K (Keilmiahan) / MB (Minat Bakat) / KW (Kewirausahaan). Kegiatan baru otomatis terdaftar dari kode_kegiatan; status kosong dianggap HADIR. Nilai Keahlian per kategori = 80% evaluasi mentor + 20% kegiatan (ikut ≥1 kegiatan di kategori itu = 100, tidak ikut = 0). Cukup unggah maba yang hadir — yang tidak tercantum otomatis dianggap tidak ikut.",
+    sample: "nrp,kode_kegiatan,nama_kegiatan,kategori,status\n2512345678,LKMM_PRA,LKMM Pra-TD,M,HADIR\n2598765432,PKM_WORKSHOP,Workshop PKM,K,HADIR",
   },
 };
 
@@ -70,7 +76,8 @@ const IMPORT_TYPE_LABELS: Record<ImportType, string> = {
   [ImportType.REFLECTION_K2]: "Kuesioner Refleksi (K2)",
   [ImportType.LOGBOOK]: "Logbook Mingguan Maba",
   [ImportType.POST_TEST]: "Nilai Post-test",
-  [ImportType.PROKER]: "Kehadiran Proker Fakultas",
+  [ImportType.PROKER]: "Kehadiran Kegiatan Besar",
+  [ImportType.KEAHLIAN]: "Kehadiran Kegiatan Keahlian",
 };
 
 export function ImportUploader() {

@@ -84,6 +84,21 @@ enum ImportType {
   PROKER
   STUDENTS
   ACCOUNTS
+  KEAHLIAN // kehadiran Kegiatan Keahlian (opsional, per kategori Nilai Keahlian)
+}
+
+/// Which attendance section of the raport an activity's sessions feed —
+/// drives both the Nilai Personal objective components (Temu FTEIC /
+/// Kegiatan Besar / Inclenation) and the optional Kegiatan Keahlian bonus in
+/// Nilai Keahlian (see lib/scoring/attendance-summary.ts). Null = the
+/// activity's sessions are not raport attendance at all (e.g. TOT/Upgrading
+/// mentor sessions). Independent of Activity.active, which only hides an
+/// activity from mentors.
+enum AttendanceCategory {
+  INCLENATION
+  TEMU_FTEIC
+  KEGIATAN_BESAR
+  KEAHLIAN
 }
 
 enum ImportRowAction {
@@ -273,6 +288,11 @@ model Activity {
   /// rather than a hardcoded code list so next year's TEMU_4 needs only a
   /// checkbox in Master Data, never a code change.
   isTemuFteic  Boolean  @default(false)
+  attendanceCategory AttendanceCategory?
+  /// For an activity that only ran as an imported quiz (e.g. Temu FTEIC 2):
+  /// a student with any score > 0 under this activity counts as HADIR in its
+  /// sessions, otherwise ALPA — there are no real Attendance rows to read.
+  attendanceFromScores Boolean @default(false)
   /// Retire without deleting — once sessions/scores exist under an activity,
   /// hard-delete is rightly blocked by FK constraints (protects real mentor
   /// data). Deactivating hides it from active use everywhere else instead.
@@ -294,6 +314,10 @@ model ActivitySession {
   scheduledAt        DateTime?
   mode               SessionMode @default(NA)
   quorumThresholdPct Decimal?    @db.Decimal(5, 2) // H-7 ambang kuorum
+  /// Kegiatan Keahlian only: the Nilai Keahlian category this session counts
+  /// toward — "M" | "K" | "MB" | "KW" (same codes as calculate.ts' skill
+  /// categories). Null for every other session.
+  skillCategory      String?
   createdAt          DateTime    @default(now())
 
   scores            Score[]

@@ -1,6 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
+import { RECAP_CACHE_TAG } from "@/lib/scoring/recap";
 import { unstable_rethrow } from "next/navigation";
 import { parse } from "csv-parse/sync";
 import bcrypt from "bcryptjs";
@@ -11,15 +12,15 @@ import {
   ImportType,
   ImportRowAction,
   AttendanceStatus,
+  AttendanceCategory,
   LogbookStatus,
   VerificationLayer,
   VerificationStatus,
 } from "@/app/generated/prisma/enums";
 import { Prisma } from "@/app/generated/prisma/client";
-import { computeScores } from "@/lib/scoring/calculate";
-import { SETTING_KEYS, DEFAULT_TEMU_ABSENCE_THRESHOLD, DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD, DEFAULT_DATA_INSUFFICIENT_MESSAGE } from "@/lib/scoring/setting-keys";
+import { computeScoresForStudents } from "@/lib/scoring/calculate";
+import { SETTING_KEYS, DEFAULT_DATA_INSUFFICIENT_MESSAGE } from "@/lib/scoring/setting-keys";
 import { upsertAttendance, upsertScore } from "@/lib/scoring/upsert";
-import { getTemuAttendanceCounts } from "@/lib/scoring/temu-attendance";
 import { getActiveRecommendationRulesForEvaluation, evaluateRecommendation } from "@/lib/scoring/recommendation";
 
 type ActionResult = { ok: true; summary?: string } | { ok: false; error: string };
@@ -236,21 +237,91 @@ async function importLogbookRow(dataMap: Record<string, string>, studentId: stri
 }
 
 async function importProkerRow(dataMap: Record<string, string>, studentId: string, actorUserId: string, importId: string): Promise<RowOutcome> {
-  const sessionCode = (dataMap["session_code"] || dataMap["prokercode"] || dataMap["proker_code"] || "").toUpperCase().trim();
+  let sessionCode = (dataMap["session_code"] || dataMap["prokercode"] || dataMap["proker_code"] || "").toUpperCase().trim();
   const statusRaw = (dataMap["status"] || "").toUpperCase().trim();
+  const arusKe = (dataMap["arus_ke"] || "").trim();
 
   if (!ATTENDANCE_STATUSES.has(statusRaw)) {
     return { action: ImportRowAction.FAILED, errorReason: `Status "${statusRaw}" tidak valid (harus HADIR/IZIN/ALPA).` };
   }
 
+  // Arus Emas runs several times — "ARUS_EMAS" + arus_ke=2 resolves to the
+  // ARUS_EMAS_2 session. Re-importing the same arus_ke overwrites that
+  // session's row (logged in previousValueSnapshot), never another arus.
+  if (sessionCode === "ARUS_EMAS") {
+    if (!/^\d+$/.test(arusKe)) {
+      return { action: ImportRowAction.FAILED, errorReason: "Sesi ARUS_EMAS wajib mengisi kolom arus_ke (1/2/3)." };
+    }
+    sessionCode = `ARUS_EMAS_${Number(arusKe)}`;
+  }
+
   const session = await prisma.activitySession.findFirst({
     where: {
-      activity: { OR: [{ code: "PROKER" }, { isImportOnly: true }] },
+      activity: { attendanceCategory: AttendanceCategory.KEGIATAN_BESAR },
       code: { equals: sessionCode, mode: "insensitive" },
     },
   });
   if (!session) {
-    return { action: ImportRowAction.FAILED, errorReason: `Sesi Proker "${sessionCode}" tidak ditemukan.` };
+    return { action: ImportRowAction.FAILED, errorReason: `Sesi Kegiatan Besar "${sessionCode}" tidak ditemukan.` };
+  }
+
+  const existing = await prisma.attendance.findUnique({ where: { studentId_sessionId: { studentId, sessionId: session.id } } });
+  await upsertAttendance({
+    studentId,
+    sessionId: session.id,
+    status: statusRaw as AttendanceStatus,
+    participationScore: null,
+    mode: "NA",
+    actorUserId,
+    source: "IMPORT",
+    importId,
+  });
+
+  return {
+    action: existing ? ImportRowAction.UPDATED : ImportRowAction.CREATED,
+    matchedStudentId: studentId,
+    previousValueSnapshot: existing ? { status: existing.status } : undefined,
+  };
+}
+
+const SKILL_CATEGORY_CODES = new Set(["M", "K", "MB", "KW"]);
+
+/**
+ * Kegiatan Keahlian — optional kegiatan, one per row. A new kode_kegiatan
+ * creates its session on the fly under the KEAHLIAN activity (tagged with
+ * the Nilai Keahlian category it counts toward); an existing one must keep
+ * the same kategori, so a typo can't silently move a kegiatan between
+ * categories for everyone already imported.
+ */
+async function importKeahlianRow(dataMap: Record<string, string>, studentId: string, actorUserId: string, importId: string): Promise<RowOutcome> {
+  const code = (dataMap["kode_kegiatan"] || "").toUpperCase().trim();
+  const name = (dataMap["nama_kegiatan"] || "").trim();
+  const category = (dataMap["kategori"] || "").toUpperCase().trim();
+  const statusRaw = (dataMap["status"] || "HADIR").toUpperCase().trim();
+
+  if (!code) return { action: ImportRowAction.FAILED, errorReason: "Kolom kode_kegiatan wajib diisi." };
+  if (code === "UMUM") return { action: ImportRowAction.FAILED, errorReason: `Kode kegiatan "UMUM" dicadangkan sistem.` };
+  if (!SKILL_CATEGORY_CODES.has(category)) {
+    return { action: ImportRowAction.FAILED, errorReason: `Kategori "${category}" tidak valid (harus M/K/MB/KW).` };
+  }
+  if (!ATTENDANCE_STATUSES.has(statusRaw)) {
+    return { action: ImportRowAction.FAILED, errorReason: `Status "${statusRaw}" tidak valid (harus HADIR/IZIN/ALPA).` };
+  }
+
+  const activity = await prisma.activity.findFirst({ where: { attendanceCategory: AttendanceCategory.KEAHLIAN } });
+  if (!activity) return { action: ImportRowAction.FAILED, errorReason: "Kegiatan Keahlian belum disiapkan di Master Data." };
+
+  let session = await prisma.activitySession.findUnique({ where: { activityId_code: { activityId: activity.id, code } } });
+  if (session && session.skillCategory !== category) {
+    return {
+      action: ImportRowAction.FAILED,
+      errorReason: `Kegiatan "${code}" sudah terdaftar dengan kategori ${session.skillCategory ?? "-"}, bukan ${category}.`,
+    };
+  }
+  if (!session) {
+    session = await prisma.activitySession.create({
+      data: { activityId: activity.id, code, name: name || code, mode: "OFFLINE", skillCategory: category },
+    });
   }
 
   const existing = await prisma.attendance.findUnique({ where: { studentId_sessionId: { studentId, sessionId: session.id } } });
@@ -291,6 +362,9 @@ async function importPostTestRow(dataMap: Record<string, string>, studentId: str
   });
   if (!parameter) {
     return { action: ImportRowAction.FAILED, errorReason: `Parameter ${activityCode}/${materialCode}/${subCode} tidak ditemukan.` };
+  }
+  if (!Number.isInteger(value) || value < 0 || value > parameter.maxValue) {
+    return { action: ImportRowAction.FAILED, errorReason: `Nilai "${valueRaw}" harus bilangan bulat 0-${parameter.maxValue}.` };
   }
   const session = await prisma.activitySession.findFirst({ where: { activity: { code: activityCode }, code: "UMUM" } });
   if (!session) {
@@ -365,6 +439,8 @@ export async function importCsvAction(type: ImportType, fileName: string, csvCon
               outcome = await importLogbookRow(dataMap, student.id, batchImport.id);
             } else if (type === ImportType.PROKER) {
               outcome = await importProkerRow(dataMap, student.id, user.id, batchImport.id);
+            } else if (type === ImportType.KEAHLIAN) {
+              outcome = await importKeahlianRow(dataMap, student.id, user.id, batchImport.id);
             } else if (type === ImportType.POST_TEST) {
               outcome = await importPostTestRow(dataMap, student.id, user.id, batchImport.id);
             } else {
@@ -458,18 +534,13 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
   try {
     const user = await assertRole(Role.ADMIN);
 
-    const [students, damenSetting, temuAbsenceSetting, temuOfflineAbsenceSetting, dataInsufficientMsgSetting, activeRules] = await Promise.all([
+    const [students, damenSetting, dataInsufficientMsgSetting, activeRules] = await Promise.all([
       prisma.student.findMany({ where: { active: true }, select: { id: true } }),
       prisma.setting.findUnique({ where: { key: SETTING_KEYS.damenEnabled } }),
-      prisma.setting.findUnique({ where: { key: SETTING_KEYS.temuAbsenceThreshold } }),
-      prisma.setting.findUnique({ where: { key: SETTING_KEYS.temuOfflineAbsenceThreshold } }),
       prisma.setting.findUnique({ where: { key: SETTING_KEYS.dataInsufficientMessage } }),
       getActiveRecommendationRulesForEvaluation(),
     ]);
     const damenEnabled = !!damenSetting?.value;
-    const temuAbsenceThreshold = typeof temuAbsenceSetting?.value === "number" ? temuAbsenceSetting.value : DEFAULT_TEMU_ABSENCE_THRESHOLD;
-    const temuOfflineAbsenceThreshold =
-      typeof temuOfflineAbsenceSetting?.value === "number" ? temuOfflineAbsenceSetting.value : DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD;
     const dataInsufficientMessage =
       typeof dataInsufficientMsgSetting?.value === "string" ? dataInsufficientMsgSetting.value : DEFAULT_DATA_INSUFFICIENT_MESSAGE;
 
@@ -486,6 +557,8 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
     let skippedCount = 0;
     let dataInsufficientCount = 0;
 
+    const computedById = await computeScoresForStudents(students.map((s) => s.id));
+
     for (const student of students) {
       const studentVerifications = verificationsByStudent.get(student.id) ?? [];
       const psdmOk = studentVerifications.some((v) => v.layer === VerificationLayer.PSDM && v.status === VerificationStatus.VERIFIED);
@@ -495,19 +568,23 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
         continue;
       }
 
-      const computed = await computeScores(student.id);
+      const computed = computedById.get(student.id);
+      if (!computed) {
+        skippedCount++;
+        continue;
+      }
       const personalScore = computed.personal.score ?? 0;
       const skillScore = computed.skill.score ?? 0;
-      const { temuAbsences, temuOfflineAbsences } = await getTemuAttendanceCounts(student.id);
-
-      const dataInsufficient = temuAbsences > temuAbsenceThreshold && temuOfflineAbsences > temuOfflineAbsenceThreshold;
+      // Gate: too many absences in Temu FTEIC or Kegiatan Besar (thresholds
+      // from Settings, evaluated inside computeScores).
+      const dataInsufficient = !computed.eligibility.eligible;
 
       let recommendation: string;
       let description: string | null;
 
       if (dataInsufficient) {
         recommendation = "Tidak Dapat Diagregasi";
-        description = dataInsufficientMessage;
+        description = `${dataInsufficientMessage}\n\nAlasan: ${computed.eligibility.reasons.join("; ")}.`;
         dataInsufficientCount++;
       } else {
         const evaluated = evaluateRecommendation(computed, activeRules);
@@ -515,7 +592,7 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
         description = evaluated.description;
       }
 
-      const breakdown = { ...computed, temuAttendance: { temuAbsences, temuOfflineAbsences } };
+      const breakdown = computed as unknown as Prisma.InputJsonValue;
 
       await prisma.raportSnapshot.upsert({
         where: { studentId: student.id },
@@ -528,10 +605,22 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
     revalidatePath("/admin/finalization");
     return {
       ok: true,
-      summary: `Finalisasi selesai: ${finalizedCount} maba dibekukan (${dataInsufficientCount} di antaranya tidak dapat diagregasi karena kekurangan presensi Temu FTEIC), ${skippedCount} maba dilewati (belum lolos verifikasi PSDM${damenEnabled ? "/Damen" : ""}).`,
+      summary: `Finalisasi selesai: ${finalizedCount} maba dibekukan (${dataInsufficientCount} di antaranya tidak dapat diagregasi karena kekurangan presensi Temu FTEIC/Kegiatan Besar), ${skippedCount} maba dilewati (belum lolos verifikasi PSDM${damenEnabled ? "/Damen" : ""}).`,
     };
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: error instanceof Error ? error.message : "Gagal melakukan finalisasi raport." };
+  }
+}
+
+/** Expires the cached cohort recap so the next /admin/rekap load recomputes it. */
+export async function refreshRecapAction(): Promise<ActionResult> {
+  try {
+    await assertRole(Role.ADMIN);
+    updateTag(RECAP_CACHE_TAG);
+    return { ok: true };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: error instanceof Error ? error.message : "Gagal memuat ulang rekap." };
   }
 }

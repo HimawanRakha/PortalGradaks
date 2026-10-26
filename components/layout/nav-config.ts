@@ -17,6 +17,7 @@ import {
   History,
   Trophy,
   UserCheck,
+  PieChart,
 } from "lucide-react";
 import { Role } from "@/app/generated/prisma/enums";
 
@@ -74,6 +75,7 @@ export const NAV_ITEMS: Record<Role, NavItem[]> = {
     { label: "Impor Data", href: "/admin/imports", icon: UploadCloud, primary: true },
     { label: "Pemeriksaan Akhir", href: "/admin/verification", icon: CheckSquare, primary: true },
     { label: "Finalisasi", href: "/admin/finalization", icon: FileSpreadsheet, primary: true },
+    { label: "Rekap Nilai", href: "/admin/rekap", icon: PieChart },
     { label: "Ekspor", href: "/admin/exports", icon: Download },
     { label: "Log Aktivitas", href: "/admin/activity-log", icon: History },
     { label: "Presensi Mentor", href: "/kepala-region/mentor-attendance", icon: UserCheck },

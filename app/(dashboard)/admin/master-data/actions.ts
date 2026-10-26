@@ -57,6 +57,7 @@ export async function createActivityAction(data: {
         order: Number(data.order),
         isImportOnly: !!data.isImportOnly,
         isTemuFteic: !!data.isTemuFteic,
+        attendanceCategory: data.isTemuFteic ? "TEMU_FTEIC" : null,
         active: data.active ?? true,
       },
     });
@@ -93,6 +94,15 @@ export async function updateActivityAction(
 ): Promise<ActionResult> {
   try {
     await assertAdmin();
+    // The Temu FTEIC checkbox drives the raport attendance section too —
+    // ticking it files the activity under TEMU_FTEIC; unticking only clears
+    // that category, never another one (e.g. Kegiatan Besar) set elsewhere.
+    const current = await prisma.activity.findUniqueOrThrow({ where: { id }, select: { attendanceCategory: true } });
+    const attendanceCategory = data.isTemuFteic
+      ? "TEMU_FTEIC"
+      : current.attendanceCategory === "TEMU_FTEIC"
+        ? null
+        : current.attendanceCategory;
     await prisma.activity.update({
       where: { id },
       data: {
@@ -101,6 +111,7 @@ export async function updateActivityAction(
         order: Number(data.order),
         isImportOnly: !!data.isImportOnly,
         isTemuFteic: !!data.isTemuFteic,
+        attendanceCategory,
         ...(data.active !== undefined ? { active: data.active } : {}),
       },
     });

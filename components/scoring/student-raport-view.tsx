@@ -4,7 +4,8 @@ import { ScoreBreakdownList } from "@/components/scoring/score-breakdown-list";
 import { QuestionnaireCode, LogbookStatus } from "@/app/generated/prisma/enums";
 import type { Prisma } from "@/app/generated/prisma/client";
 import type { ComputedScores } from "@/lib/scoring/calculate";
-import { ExternalLink, ImageIcon } from "lucide-react";
+import type { AttendanceSection } from "@/lib/scoring/attendance-summary";
+import { AlertTriangle, CheckCircle2, ExternalLink, ImageIcon } from "lucide-react";
 
 /**
  * Parses a string to check if it's a URL (e.g. Google Drive link) and extracts
@@ -82,12 +83,16 @@ export function StudentRaportView({ student, computed }: { student: StudentForRa
                 </p>
               </div>
             </div>
-            <ScoreBreakdownList
-              personalGroups={computed.personal.groups}
-              skillCategories={computed.skill.categories}
-              personalItems={computed.personal.items}
-              skillItems={computed.skill.items}
-            />
+            {!computed.eligibility.eligible ? (
+              <div className="flex gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                <div>
+                  <p className="font-semibold">Tidak layak diagregasi</p>
+                  <p>{computed.eligibility.reasons.join("; ")}. Data akan diserahkan ke HMD untuk pendampingan lebih lanjut.</p>
+                </div>
+              </div>
+            ) : null}
+            <ScoreBreakdownList computed={computed} />
           </CardContent>
         </Card>
 
@@ -204,26 +209,121 @@ export function StudentRaportView({ student, computed }: { student: StudentForRa
         <CardHeader>
           <CardTitle className="text-base">Riwayat Kehadiran</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2">
-          {student.attendances.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Belum ada data kehadiran.</p>
-          ) : (
-            student.attendances.map((att) => (
-              <div key={att.id} className="flex items-center justify-between gap-2 rounded-lg border p-2.5 text-sm">
-                <p>{att.session.activity.name} — {att.session.name}</p>
-                <div className="flex items-center gap-2">
-                  {att.participationScore ? (
-                    <span className="text-xs text-muted-foreground">Keaktifan {att.participationScore}</span>
-                  ) : null}
-                  <Badge variant={att.status === "HADIR" ? "default" : att.status === "ALPA" ? "destructive" : "secondary"}>
-                    {att.status}
-                  </Badge>
-                </div>
-              </div>
-            ))
-          )}
+        <CardContent className="space-y-4">
+          {computed.attendance.map((section) => (
+            <AttendanceSectionView key={section.category} section={section} />
+          ))}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+const STATUS_VARIANT = { HADIR: "default", IZIN: "secondary", ALPA: "destructive" } as const;
+
+const SKILL_CATEGORY_NAMES: Record<string, string> = {
+  M: "Manajerial",
+  K: "Keilmiahan",
+  MB: "Minat Bakat",
+  KW: "Kewirausahaan",
+};
+
+/**
+ * One attendance section with its progress toward the minimum (Temu FTEIC /
+ * Kegiatan Besar) and the "tidak layak diagregasi" notice underneath once
+ * the absence limit is exceeded. Sessions not held yet stay out of the
+ * count, so "Kurang N lagi" can still be met by an upcoming session.
+ */
+function AttendanceSectionView({ section }: { section: AttendanceSection }) {
+  const isOptional = section.category === "KEAHLIAN";
+  const pending = section.totalSessions - section.heldCount;
+  const target = section.minAttendance ?? section.totalSessions;
+  const remaining = Math.max(0, target - section.attendedCount);
+  const progressPct = target > 0 ? Math.min(100, (section.attendedCount / target) * 100) : 0;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold">{section.label}</p>
+        {isOptional ? (
+          <Badge variant="secondary">{section.attendedCount} kegiatan diikuti</Badge>
+        ) : section.maxAbsences === null ? (
+          <Badge variant="secondary">
+            Hadir {section.attendedCount}/{section.totalSessions}
+          </Badge>
+        ) : !section.eligible ? (
+          <Badge variant="destructive">Tidak layak</Badge>
+        ) : remaining === 0 ? (
+          <Badge className="gap-1 bg-emerald-600 text-white hover:bg-emerald-600">
+            <CheckCircle2 className="size-3" /> Aman
+          </Badge>
+        ) : (
+          <Badge variant="outline" className="border-amber-500 text-amber-600 dark:text-amber-400">
+            Kurang {remaining} lagi
+          </Badge>
+        )}
+      </div>
+
+      {!isOptional ? (
+        <div className="space-y-1">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={
+                section.eligible ? (remaining === 0 ? "h-full bg-emerald-600" : "h-full bg-amber-500") : "h-full bg-destructive"
+              }
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground">
+            Hadir {section.attendedCount} dari {target}
+            {section.maxAbsences !== null
+              ? ` minimal (${section.totalSessions} kegiatan, boleh absen maks. ${section.maxAbsences}x) · absen ${section.absences}x`
+              : " sesi"}
+            {pending > 0 ? ` · ${pending} belum terlaksana/diimpor` : ""}
+          </p>
+        </div>
+      ) : null}
+
+      {section.entries.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          {isOptional ? "Belum ada kegiatan keahlian yang diikuti. Ikut minimal 1 kegiatan per kategori untuk mendapat porsi kegiatan penuh di Nilai Keahlian." : "Belum ada data."}
+        </p>
+      ) : (
+        <div className="space-y-1.5">
+          {section.entries.map((e) => (
+            <div key={e.sessionId} className="flex items-center justify-between gap-2 rounded-lg border p-2.5 text-sm">
+              <div className="min-w-0">
+                <p className="truncate">{e.sessionName}</p>
+                <p className="truncate text-[10px] text-muted-foreground">
+                  {e.activityName}
+                  {e.skillCategory ? ` · ${SKILL_CATEGORY_NAMES[e.skillCategory] ?? e.skillCategory}` : ""}
+                  {e.derivedFromScores ? " · dari nilai kuis (ada nilai = hadir)" : ""}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {e.participationScore ? (
+                  <span className="text-xs text-muted-foreground">Keaktifan {e.participationScore}</span>
+                ) : null}
+                {e.status ? (
+                  <Badge variant={STATUS_VARIANT[e.status]}>{e.status}</Badge>
+                ) : (
+                  <span className="text-xs text-muted-foreground">Belum terlaksana</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!section.eligible ? (
+        <div className="flex gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
+          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+          <p>
+            <span className="font-semibold">Tidak layak diagregasi</span> — absen {section.label} {section.absences}x, melebihi
+            batas {section.maxAbsences}x.
+          </p>
+        </div>
+      ) : null}
     </div>
   );
 }

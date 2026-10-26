@@ -9,7 +9,7 @@ import { Role, ParameterType, InputMethod, SessionMode, AttendanceStatus, Logboo
 import {
   SETTING_KEYS,
   DEFAULT_TEMU_ABSENCE_THRESHOLD,
-  DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD,
+  DEFAULT_KEGIATAN_BESAR_ABSENCE_THRESHOLD,
   DEFAULT_DATA_INSUFFICIENT_MESSAGE,
 } from "../lib/scoring/setting-keys";
 
@@ -128,7 +128,7 @@ async function seedSettings() {
     { key: SETTING_KEYS.calibrationThreshold, value: 0.6 },
     { key: SETTING_KEYS.damenEnabled, value: false },
     { key: SETTING_KEYS.temuAbsenceThreshold, value: DEFAULT_TEMU_ABSENCE_THRESHOLD },
-    { key: SETTING_KEYS.temuOfflineAbsenceThreshold, value: DEFAULT_TEMU_OFFLINE_ABSENCE_THRESHOLD },
+    { key: SETTING_KEYS.kegiatanBesarAbsenceThreshold, value: DEFAULT_KEGIATAN_BESAR_ABSENCE_THRESHOLD },
     { key: SETTING_KEYS.dataInsufficientMessage, value: DEFAULT_DATA_INSUFFICIENT_MESSAGE },
   ];
   for (const setting of defaults) {
