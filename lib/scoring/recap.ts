@@ -30,6 +30,8 @@ export type RecapRow = {
   keahlianAttended: number;
   /** Kegiatan Besar session code → status (null = not held yet). */
   besarSessions: Record<string, AttendanceStatus | null>;
+  /** Kegiatan Keahlian session code → status, only for kegiatan this maba has a row for. */
+  keahlianSessions: Record<string, AttendanceStatus>;
 };
 
 export type RecapMeta = {
@@ -41,6 +43,7 @@ export type RecapMeta = {
   temuSessions: number;
   kegiatanBesarSessions: number;
   kegiatanBesarList: Array<{ code: string; name: string }>;
+  keahlianList: Array<{ code: string; name: string; skillCategory: string | null }>;
 };
 
 export type RecapData = { rows: RecapRow[]; meta: RecapMeta };
@@ -110,6 +113,9 @@ export async function loadRecapComputation(): Promise<{ data: RecapData; compute
       },
       keahlianAttended: section(AttendanceCategory.KEAHLIAN).entries.filter((e) => e.status === AttendanceStatus.HADIR).length,
       besarSessions: Object.fromEntries(section(AttendanceCategory.KEGIATAN_BESAR).entries.map((e) => [e.sessionCode, e.status])),
+      keahlianSessions: Object.fromEntries(
+        section(AttendanceCategory.KEAHLIAN).entries.flatMap((e) => (e.status ? [[e.sessionCode, e.status]] : [])),
+      ),
     });
   }
 
@@ -120,6 +126,10 @@ export async function loadRecapComputation(): Promise<{ data: RecapData; compute
     .filter((x) => x.activity.attendanceCategory === AttendanceCategory.KEGIATAN_BESAR)
     .map((x) => ({ code: x.code, name: x.name }))
     .sort((a, b) => rank(a.code) - rank(b.code) || a.code.localeCompare(b.code));
+  const keahlianList = ctx.attendance.sessions
+    .filter((x) => x.activity.attendanceCategory === AttendanceCategory.KEAHLIAN)
+    .map((x) => ({ code: x.code, name: x.name, skillCategory: x.skillCategory }))
+    .sort((a, b) => (a.skillCategory ?? "").localeCompare(b.skillCategory ?? "") || a.name.localeCompare(b.name));
   const data: RecapData = {
     rows,
     meta: {
@@ -131,6 +141,7 @@ export async function loadRecapComputation(): Promise<{ data: RecapData; compute
       temuSessions: sessionCount(AttendanceCategory.TEMU_FTEIC),
       kegiatanBesarSessions: sessionCount(AttendanceCategory.KEGIATAN_BESAR),
       kegiatanBesarList,
+      keahlianList,
     },
   };
   const computedByNrp = new Map<string, ComputedScores>();
@@ -150,7 +161,7 @@ export async function loadRecapData(): Promise<RecapData> {
  * cached for 10 minutes; the recap page's "Hitung ulang" button expires it
  * immediately (updateTag) after new imports.
  */
-export const getRecapData = unstable_cache(loadRecapData, ["recap-data-v2"], {
+export const getRecapData = unstable_cache(loadRecapData, ["recap-data-v3"], {
   revalidate: 600,
   tags: [RECAP_CACHE_TAG],
 });
@@ -320,6 +331,7 @@ export function recapExplanations(meta: RecapMeta) {
     predicatePies:
       "Tiap lingkaran = satu aspek; potongannya adalah persentase maba (layak diagregasi) di predikat Sangat Baik ≥{sb}, Baik ≥{b}, Cukup ≥{c}, dan Kurang. Potongan Cukup + Kurang yang besar menandakan aspek yang perlu perhatian.",
     besarPies: `Tiap lingkaran = satu Kegiatan Besar: persentase maba Hadir / Izin / Alpa. Kegiatan yang datanya belum diimpor ditandai "belum terlaksana".`,
+    keahlianPies: `Tiap lingkaran = satu Kegiatan Keahlian (opsional): persentase seluruh maba yang Hadir, Izin, Alpa, atau Tidak ikut (namanya tidak ada di data kegiatan). Maba yang hadir mendapat porsi kegiatan ${pc(s.kegiatan)} pada kategori keahlian kegiatan tersebut.`,
   };
 }
 
@@ -424,6 +436,48 @@ export function buildKegiatanBesarStats(rows: RecapRow[], meta: RecapMeta): Besa
   });
 }
 
+export type KeahlianSessionStat = BesarSessionStat & {
+  /** Skill category code (M/K/MB/KW) and its label. */
+  category: string | null;
+  categoryLabel: string;
+  /** Maba in scope with no row for this kegiatan at all. */
+  tidakIkut: number;
+  total: number;
+};
+
+/**
+ * Per Kegiatan Keahlian: since joining is optional, every maba in scope is
+ * counted — those without a row are "Tidak ikut" — and hadirPct is the share
+ * of the whole scope that attended.
+ */
+export function buildKeahlianStats(rows: RecapRow[], meta: RecapMeta): KeahlianSessionStat[] {
+  return meta.keahlianList.map(({ code, name, skillCategory }) => {
+    let hadir = 0;
+    let izin = 0;
+    let alpa = 0;
+    for (const r of rows) {
+      const s = r.keahlianSessions[code];
+      if (s === AttendanceStatus.HADIR) hadir++;
+      else if (s === AttendanceStatus.IZIN) izin++;
+      else if (s === AttendanceStatus.ALPA) alpa++;
+    }
+    const total = rows.length;
+    return {
+      code,
+      name,
+      category: skillCategory,
+      categoryLabel: skillCategory ? (SKILL_LABELS[skillCategory] ?? skillCategory) : "-",
+      held: hadir + izin + alpa > 0,
+      hadir,
+      izin,
+      alpa,
+      tidakIkut: total - hadir - izin - alpa,
+      total,
+      hadirPct: total > 0 ? Number(((hadir / total) * 100).toFixed(1)) : null,
+    };
+  });
+}
+
 /**
  * Everything the recap page and its Excel export show for one scope (whole
  * faculty or one department) — built in one place so both stay identical.
@@ -437,7 +491,8 @@ export function buildRecapView(data: RecapData, settings: RecapSettings, deptCod
   const stats = buildRecapStats(scoped);
   const pies = buildPredicatePies(scoped, settings.thresholds);
   const besar = buildKegiatanBesarStats(scoped, meta);
+  const keahlian = buildKeahlianStats(scoped, meta);
   const base = recapExplanations(meta);
   const explanations = { ...base, predicatePies: predicateExplanation(base.predicatePies, settings.thresholds) };
-  return { departments, activeDept, scoped, scopeName, stats, pies, besar, explanations };
+  return { departments, activeDept, scoped, scopeName, stats, pies, besar, keahlian, explanations };
 }

@@ -4,7 +4,7 @@ import { Download, Info } from "lucide-react";
 import { assertRole } from "@/lib/auth/dal";
 import { Role } from "@/app/generated/prisma/enums";
 import { getRecapData, getRecapSettings, buildRecapView } from "@/lib/scoring/recap";
-import { BesarPieGrid, PredicatePieGrid } from "@/components/admin/recap-pies";
+import { BesarPieGrid, KeahlianPieGrid, PredicatePieGrid } from "@/components/admin/recap-pies";
 import { RecapCharts } from "@/components/admin/recap-charts";
 import { RecapRefreshButton } from "@/components/admin/recap-refresh-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,7 @@ export default async function RekapPage({ searchParams }: { searchParams: Promis
 
   const [data, recapSettings] = await Promise.all([getRecapData(), getRecapSettings()]);
   const { meta } = data;
-  const { departments, activeDept, stats, pies, besar, explanations } = buildRecapView(data, recapSettings, dept ?? null);
+  const { departments, activeDept, stats, pies, besar, keahlian, explanations } = buildRecapView(data, recapSettings, dept ?? null);
   const exportHref = `/api/export/rekap${activeDept ? `?dept=${encodeURIComponent(activeDept.code)}` : ""}`;
 
   const tabs = [{ code: null as string | null, label: "Semua" }, ...departments.map((d) => ({ code: d.code, label: d.name }))];
@@ -85,6 +85,7 @@ export default async function RekapPage({ searchParams }: { searchParams: Promis
         pies={pies.filter((p) => p.group === "Keahlian")}
       />
       <BesarPieGrid description={explanations.besarPies} sessions={besar} />
+      <KeahlianPieGrid description={explanations.keahlianPies} sessions={keahlian} />
 
       <Card>
         <CardHeader>

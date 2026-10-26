@@ -4,7 +4,7 @@ import { Cell, Label, Pie, PieChart } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
-import type { BesarSessionStat, PredicatePie } from "@/lib/scoring/recap";
+import type { BesarSessionStat, KeahlianSessionStat, PredicatePie } from "@/lib/scoring/recap";
 
 const PREDICATE_COLORS: Record<string, string> = {
   "Sangat Baik": "var(--chart-4)",
@@ -17,6 +17,10 @@ const predicateConfig = Object.fromEntries(
 ) satisfies ChartConfig;
 
 const ATTENDANCE_COLORS = { Hadir: "var(--chart-2)", Izin: "var(--chart-3)", Alpa: "var(--destructive)" };
+const KEAHLIAN_COLORS = { ...ATTENDANCE_COLORS, "Tidak ikut": "var(--muted-foreground)" };
+const keahlianConfig = Object.fromEntries(
+  Object.entries(KEAHLIAN_COLORS).map(([k, color]) => [k, { label: k, color }]),
+) satisfies ChartConfig;
 const attendanceConfig = Object.fromEntries(
   Object.entries(ATTENDANCE_COLORS).map(([k, color]) => [k, { label: k, color }]),
 ) satisfies ChartConfig;
@@ -149,6 +153,54 @@ export function BesarPieGrid({ description, sessions }: { description: string; s
                   <Legend items={slices} colors={ATTENDANCE_COLORS} />
                   <p className="text-[10px] text-muted-foreground">
                     {s.hadir} hadir · {s.izin} izin · {s.alpa} alpa
+                  </p>
+                </>
+              )}
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function KeahlianPieGrid({ description, sessions }: { description: string; sessions: KeahlianSessionStat[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Keikutsertaan per Kegiatan Keahlian</CardTitle>
+        <CardDescription className="text-xs">{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {sessions.length === 0 ? <p className="text-xs text-muted-foreground">Belum ada Kegiatan Keahlian yang diimpor.</p> : null}
+        {sessions.map((s) => {
+          const pct = (v: number) => (s.total > 0 ? Number(((v / s.total) * 100).toFixed(1)) : 0);
+          const slices = [
+            { name: "Hadir", value: s.hadir, pct: pct(s.hadir) },
+            { name: "Izin", value: s.izin, pct: pct(s.izin) },
+            { name: "Alpa", value: s.alpa, pct: pct(s.alpa) },
+            { name: "Tidak ikut", value: s.tidakIkut, pct: pct(s.tidakIkut) },
+          ];
+          return (
+            <div key={s.code} className="space-y-2 rounded-lg border p-3">
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 text-xs font-semibold">{s.name}</p>
+                <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-semibold text-primary">{s.categoryLabel}</span>
+              </div>
+              {s.total === 0 ? (
+                <p className="py-10 text-center text-xs text-muted-foreground">Belum ada data</p>
+              ) : (
+                <>
+                  <Donut
+                    data={slices}
+                    colors={KEAHLIAN_COLORS}
+                    config={keahlianConfig}
+                    centerValue={`${s.hadirPct ?? 0}%`}
+                    centerLabel="hadir"
+                  />
+                  <Legend items={slices} colors={KEAHLIAN_COLORS} />
+                  <p className="text-[10px] text-muted-foreground">
+                    {s.hadir} hadir · {s.izin} izin · {s.alpa} alpa · {s.tidakIkut} tidak ikut
                   </p>
                 </>
               )}

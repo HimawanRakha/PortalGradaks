@@ -298,7 +298,7 @@ export function buildRecapWorkbook(
 ): { workbook: ExcelJS.Workbook; slug: string } {
   const { meta } = data;
   const view = buildRecapView(data, settings, dept);
-  const { departments, activeDept, scoped, stats, pies, besar } = view;
+  const { departments, activeDept, scoped, stats, pies, besar, keahlian } = view;
   const exp = view.explanations;
   const scopeName = activeDept ? activeDept.name : "Seluruh Departemen";
 
@@ -326,6 +326,7 @@ export function buildRecapWorkbook(
   const chartNotes: Array<[string, string]> = [
     ["Pemetaan Predikat per Aspek", exp.predicatePies],
     ["Kehadiran per Kegiatan Besar", exp.besarPies],
+    ["Keikutsertaan per Kegiatan Keahlian", exp.keahlianPies],
     ["Sebaran Nilai Personal", exp.personalHist],
     ["Sebaran Nilai Keahlian", exp.skillHist],
     ["Komponen Nilai Personal", exp.components],
@@ -363,6 +364,14 @@ export function buildRecapWorkbook(
     exp.besarPies,
     ["Kegiatan", "% Hadir", "Hadir", "Izin", "Alpa"],
     besar.map((b) => [b.held ? b.name : `${b.name} (belum terlaksana)`, b.hadirPct, b.hadir, b.izin, b.alpa]),
+    [2],
+  );
+  addChartTable(
+    sum,
+    "Keikutsertaan per Kegiatan Keahlian",
+    exp.keahlianPies,
+    ["Kegiatan (Kategori)", "% Hadir", "Hadir", "Izin", "Alpa", "Tidak ikut"],
+    keahlian.map((k) => [`${k.name} (${k.categoryLabel})`, k.hadirPct, k.hadir, k.izin, k.alpa, k.tidakIkut]),
     [2],
   );
   addChartTable(
