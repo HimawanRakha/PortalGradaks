@@ -8,10 +8,10 @@ import { RaportPdf } from "@/lib/raport-pdf";
 
 /**
  * Public, NRP-keyed PDF raport — the same exposure as the /cek-raport page
- * itself (and rate-limited alongside it in proxy.ts). Once PSDM finalizes,
- * the frozen RaportSnapshot values and its recommendation are used, so the
- * PDF never disagrees with the official result; before that it's the live
- * estimate, clearly labelled as such.
+ * itself (and rate-limited alongside it in proxy.ts). Only available once
+ * PSDM has finalized the maba's raport; it then uses the frozen
+ * RaportSnapshot values and recommendation, so the PDF never disagrees with
+ * the official result.
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -25,6 +25,9 @@ export async function GET(request: Request) {
   if (!student) return new Response("NRP tidak ditemukan.", { status: 404 });
 
   const snapshot = student.raportSnapshot;
+  // The PDF is the official document — only downloadable once PSDM has
+  // finalized this maba's raport (the Cek Raport button is locked until then).
+  if (!snapshot) return new Response("Raport belum difinalisasi. PDF dapat diunduh setelah finalisasi PSDM.", { status: 403 });
   const frozen = snapshot?.breakdown as unknown as ComputedScores | undefined;
   // Snapshots written before the attendance-based formula lack these fields.
   const computed = frozen?.personal?.components && frozen.attendance ? frozen : await computeScores(student.id);

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CheckCircle2, FileDown, TriangleAlert } from "lucide-react";
+import { CheckCircle2, FileDown, Lock, TriangleAlert } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { computeScores } from "@/lib/scoring/calculate";
 import { StudentRaportView, studentRaportInclude } from "@/components/scoring/student-raport-view";
@@ -120,20 +120,34 @@ export default async function CekRaportPage({ searchParams }: { searchParams: Pr
             )}
 
             {/* Deliberately not the primary-button look: this is the one action
-                maba should spot instantly, so it gets its own solid red + PDF icon. */}
-            <Button
-              className="h-auto w-full gap-3 border-0 bg-red-600 py-3 text-white hover:bg-red-700"
-              nativeButton={false}
-              render={<a href={`/cek-raport/pdf?nrp=${encodeURIComponent(student.nrp)}`} download />}
-            >
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
-                <FileDown className="size-5" />
-              </span>
-              <span className="flex flex-col items-start text-left leading-tight">
-                <span className="text-sm font-semibold">Unduh Raport (PDF)</span>
-                <span className="text-[11px] font-normal text-white/85">Rekap resmi 1 halaman · siap disimpan & dicetak</span>
-              </span>
-            </Button>
+                maba should spot instantly, so it gets its own solid red + PDF icon.
+                Locked until this maba's raport is finalized (the PDF route
+                enforces the same rule server-side). */}
+            {student.raportSnapshot ? (
+              <Button
+                className="h-auto w-full gap-3 border-0 bg-red-600 py-3 text-white hover:bg-red-700"
+                nativeButton={false}
+                render={<a href={`/cek-raport/pdf?nrp=${encodeURIComponent(student.nrp)}`} download />}
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                  <FileDown className="size-5" />
+                </span>
+                <span className="flex flex-col items-start text-left leading-tight">
+                  <span className="text-sm font-semibold">Unduh Raport (PDF)</span>
+                  <span className="text-[11px] font-normal text-white/85">Rekap resmi 1 halaman · siap disimpan & dicetak</span>
+                </span>
+              </Button>
+            ) : (
+              <Button disabled className="h-auto w-full gap-3 border-0 bg-red-600 py-3 text-white disabled:opacity-50">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                  <Lock className="size-5" />
+                </span>
+                <span className="flex flex-col items-start text-left leading-tight">
+                  <span className="text-sm font-semibold">Unduh Raport (PDF)</span>
+                  <span className="text-[11px] font-normal text-white/85">Tersedia setelah raport difinalisasi PSDM</span>
+                </span>
+              </Button>
+            )}
 
             <StudentRaportView student={student} computed={computed} />
           </div>
