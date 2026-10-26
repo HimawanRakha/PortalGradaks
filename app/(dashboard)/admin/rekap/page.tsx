@@ -3,7 +3,8 @@ import Link from "next/link";
 import { Download, Info } from "lucide-react";
 import { assertRole } from "@/lib/auth/dal";
 import { Role } from "@/app/generated/prisma/enums";
-import { getRecapData, buildRecapStats, buildDepartmentStats, recapExplanations } from "@/lib/scoring/recap";
+import { getRecapData, getInsightSettings, buildRecapView } from "@/lib/scoring/recap";
+import { BesarPieGrid, InsightList, PredicatePieGrid } from "@/components/admin/recap-insights";
 import { RecapCharts } from "@/components/admin/recap-charts";
 import { RecapRefreshButton } from "@/components/admin/recap-refresh-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,12 +19,9 @@ export default async function RekapPage({ searchParams }: { searchParams: Promis
   await assertRole(Role.ADMIN);
   const { dept } = await searchParams;
 
-  const { rows, meta } = await getRecapData();
-  const departments = buildDepartmentStats(rows);
-  const activeDept = departments.find((d) => d.code === dept) ?? null;
-  const scoped = activeDept ? rows.filter((r) => r.departmentCode === activeDept.code) : rows;
-  const stats = buildRecapStats(scoped);
-  const explanations = recapExplanations(meta);
+  const [data, insightSettings] = await Promise.all([getRecapData(), getInsightSettings()]);
+  const { meta } = data;
+  const { departments, activeDept, stats, pies, besar, insights, explanations } = buildRecapView(data, insightSettings, dept ?? null);
   const exportHref = `/api/export/rekap${activeDept ? `?dept=${encodeURIComponent(activeDept.code)}` : ""}`;
 
   const tabs = [{ code: null as string | null, label: "Semua" }, ...departments.map((d) => ({ code: d.code, label: d.name }))];
@@ -75,6 +73,20 @@ export default async function RekapPage({ searchParams }: { searchParams: Promis
         <StatTile label="Rata-rata Nilai Personal" value={fmt(stats.personal.mean)} hint={`median ${fmt(stats.personal.median)} · SD ${fmt(stats.personal.std)}`} />
         <StatTile label="Rata-rata Nilai Keahlian" value={fmt(stats.skill.mean)} hint={`median ${fmt(stats.skill.median)} · SD ${fmt(stats.skill.std)}`} />
       </div>
+
+      <InsightList description={explanations.insights} insights={insights} />
+
+      <PredicatePieGrid
+        title="Pemetaan Sub-Nilai Personal"
+        description={explanations.predicatePies}
+        pies={pies.filter((p) => p.group === "Sub-Nilai Personal")}
+      />
+      <PredicatePieGrid
+        title="Pemetaan Nilai Keahlian per Kategori"
+        description={explanations.predicatePies}
+        pies={pies.filter((p) => p.group === "Keahlian")}
+      />
+      <BesarPieGrid description={explanations.besarPies} sessions={besar} />
 
       <Card>
         <CardHeader>

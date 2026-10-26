@@ -1,11 +1,10 @@
 import "server-only";
 import ExcelJS from "exceljs";
 import {
-  buildRecapStats,
-  buildDepartmentStats,
-  recapExplanations,
+  buildRecapView,
   SUB_NILAI_LABELS,
   SKILL_LABELS,
+  type InsightSettings,
   type RecapData,
   type RecapRow,
 } from "./recap";
@@ -149,13 +148,15 @@ function addDataSheet(workbook: ExcelJS.Workbook, name: string, rows: RecapRow[]
  * per-maba data and the tidak-layak list — for the whole cohort or one
  * department (deptCode). Pure over RecapData so it can be tested offline.
  */
-export function buildRecapWorkbook(data: RecapData, dept: string | null): { workbook: ExcelJS.Workbook; slug: string } {
-  const { rows, meta } = data;
-  const departments = buildDepartmentStats(rows);
-  const activeDept = departments.find((d) => d.code === dept) ?? null;
-  const scoped = activeDept ? rows.filter((r) => r.departmentCode === activeDept.code) : rows;
-  const stats = buildRecapStats(scoped);
-  const exp = recapExplanations(meta);
+export function buildRecapWorkbook(
+  data: RecapData,
+  settings: InsightSettings,
+  dept: string | null,
+): { workbook: ExcelJS.Workbook; slug: string } {
+  const { meta } = data;
+  const view = buildRecapView(data, settings, dept);
+  const { departments, activeDept, scoped, stats, pies, besar, insights } = view;
+  const exp = view.explanations;
   const scopeName = activeDept ? activeDept.name : "Seluruh Departemen";
 
   const workbook = new ExcelJS.Workbook();
@@ -180,6 +181,8 @@ export function buildRecapWorkbook(data: RecapData, dept: string | null): { work
   info.addRow([]);
   info.addRow(["Penjelasan grafik (sheet Ringkasan & Grafik)"]).font = { bold: true, size: 12 };
   const chartNotes: Array<[string, string]> = [
+    ["Pemetaan Predikat per Aspek", exp.predicatePies],
+    ["Kehadiran per Kegiatan Besar", exp.besarPies],
     ["Sebaran Nilai Personal", exp.personalHist],
     ["Sebaran Nilai Keahlian", exp.skillHist],
     ["Komponen Nilai Personal", exp.components],
@@ -199,10 +202,45 @@ export function buildRecapWorkbook(data: RecapData, dept: string | null): { work
     "Grafik di sheet Ringkasan & Grafik ditampilkan sebagai batang data (data bar) di dalam sel. Tabel angkanya bisa langsung diblok lalu Insert → Chart bila ingin grafik Excel biasa.",
   ]).getCell(2).alignment = { wrapText: true };
 
-  // ---- Sheet 2: Ringkasan & Grafik ----
+  // ---- Sheet 2: Insight & Rekomendasi ----
+  const ins = workbook.addWorksheet("Insight & Rekomendasi");
+  ins.columns = [
+    { header: "No", key: "no", width: 5 },
+    { header: "Jenis", key: "tone", width: 14 },
+    { header: "Insight", key: "title", width: 42 },
+    { header: "Detail", key: "detail", width: 60 },
+    { header: "Rekomendasi", key: "rec", width: 70 },
+  ];
+  styleHeader(ins.getRow(1));
+  const TONE_LABEL = { warning: "Perlu perhatian", info: "Catatan", positive: "Kekuatan" } as const;
+  insights.forEach((i, idx) => {
+    const row = ins.addRow({ no: idx + 1, tone: TONE_LABEL[i.tone], title: i.title, detail: i.detail, rec: i.recommendation ?? "-" });
+    row.alignment = { wrapText: true, vertical: "top" };
+    row.getCell("tone").font = { bold: true, color: { argb: i.tone === "warning" ? "FFDC2626" : i.tone === "positive" ? "FF059669" : "FFD97706" } };
+  });
+  ins.addRow([]);
+  ins.addRow(["", "", exp.insights]).getCell(3).alignment = { wrapText: true };
+
+  // ---- Sheet 3: Ringkasan & Grafik ----
   const sum = workbook.addWorksheet("Ringkasan & Grafik");
   sum.getColumn(1).width = 30;
   for (let c = 2; c <= 6; c++) sum.getColumn(c).width = 16;
+  addChartTable(
+    sum,
+    "Pemetaan Predikat per Aspek (% maba)",
+    exp.predicatePies,
+    ["Aspek", "Rata-rata", "% Sangat Baik", "% Baik", "% Cukup", "% Kurang"],
+    pies.map((p) => [p.label, p.mean, ...p.slices.map((s) => s.pct)]),
+    [3, 4, 5, 6],
+  );
+  addChartTable(
+    sum,
+    "Kehadiran per Kegiatan Besar",
+    exp.besarPies,
+    ["Kegiatan", "% Hadir", "Hadir", "Izin", "Alpa"],
+    besar.map((b) => [b.held ? b.name : `${b.name} (belum terlaksana)`, b.hadirPct, b.hadir, b.izin, b.alpa]),
+    [2],
+  );
   addChartTable(
     sum,
     "Statistik Nilai (maba layak diagregasi)",

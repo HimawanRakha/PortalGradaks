@@ -16,6 +16,8 @@ export const SETTING_KEYS = {
   attendanceStatusScores: "attendance.statusScores",
   participationMapping: "attendance.participationMapping",
   personalComponentWeights: "weights.personalComponents",
+  recapPredicateThresholds: "recap.predicateThresholds",
+  recapRecommendations: "recap.insightRecommendations",
   skillComponentWeights: "weights.skillComponents",
 } as const;
 
@@ -75,4 +77,48 @@ export const DEFAULT_PERSONAL_COMPONENT_WEIGHTS = {
 export const DEFAULT_SKILL_COMPONENT_WEIGHTS = {
   kegiatan: 0.2,
   mentor: 0.8,
+};
+
+/**
+ * Predikat bands for the recap pie charts: score >= sangatBaik → Sangat Baik,
+ * >= baik → Baik, >= cukup → Cukup, otherwise Kurang (0-100 scale).
+ */
+export const DEFAULT_PREDICATE_THRESHOLDS = {
+  sangatBaik: 85,
+  baik: 70,
+  cukup: 55,
+};
+
+/** Every aspect the recap can raise an insight about, in display order. */
+export const INSIGHT_ASPECTS: Array<{ code: string; label: string; group: string }> = [
+  { code: "A.1", label: "Kebersamaan", group: "Sub-Nilai Personal" },
+  { code: "A.2", label: "Kebanggaan Fakultas", group: "Sub-Nilai Personal" },
+  { code: "B.1", label: "Manajemen Diri", group: "Sub-Nilai Personal" },
+  { code: "B.2", label: "Kerja Sama", group: "Sub-Nilai Personal" },
+  { code: "C.1", label: "Problem Solving", group: "Sub-Nilai Personal" },
+  { code: "C.2", label: "Kepekaan Sosial", group: "Sub-Nilai Personal" },
+  { code: "M", label: "Manajerial", group: "Keahlian" },
+  { code: "K", label: "Keilmiahan", group: "Keahlian" },
+  { code: "MB", label: "Minat Bakat", group: "Keahlian" },
+  { code: "KW", label: "Kewirausahaan", group: "Keahlian" },
+  { code: "TEMU_FTEIC", label: "Kehadiran Temu FTEIC", group: "Kehadiran" },
+  { code: "KEGIATAN_BESAR", label: "Kehadiran Kegiatan Besar", group: "Kehadiran" },
+  { code: "INCLENATION", label: "Kehadiran Inclenation", group: "Kehadiran" },
+];
+
+/** Default follow-up text per aspect — editable in Master Data → Settings. */
+export const DEFAULT_INSIGHT_RECOMMENDATIONS: Record<string, string> = {
+  "A.1": "Perbanyak kegiatan kolektif lintas unit (makrab, kegiatan angkatan) dan dorong kehadiran lewat mentor; pantau maba yang sering absen sejak awal.",
+  "A.2": "Kenalkan lebih dalam budaya, sejarah, dan ormawa FTEIC; libatkan maba di acara fakultas/himpunan agar rasa memiliki tumbuh.",
+  "B.1": "Adakan pendampingan manajemen waktu & emosi (goal setting, skala prioritas) dan check-in rutin dengan mentor/kakak tingkat.",
+  "B.2": "Beri lebih banyak tugas kelompok dengan pembagian peran yang jelas, lalu refleksi kerja tim setelahnya.",
+  "C.1": "Gunakan studi kasus dan proyek kecil berbasis masalah nyata untuk melatih berpikir kritis dan kreatif.",
+  "C.2": "Libatkan maba dalam kegiatan sosial/pengabdian masyarakat dan diskusi empati; apresiasi inisiatif membantu sesama.",
+  M: "Arahkan maba ke pelatihan kepemimpinan & organisasi (LKMM, kepanitiaan himpunan) dan beri kesempatan memegang peran.",
+  K: "Dorong keikutsertaan di kegiatan riset, PKM, lomba karya tulis, dan kelompok studi/laboratorium.",
+  MB: "Fasilitasi UKM/komunitas minat bakat dan beri panggung untuk karya maba di acara himpunan.",
+  KW: "Perkenalkan kewirausahaan lewat workshop bisnis, inkubator, dan lomba business plan.",
+  TEMU_FTEIC: "Tindak lanjuti maba yang absen Temu FTEIC lewat mentor dan HMD; kirim pengingat sebelum setiap sesi.",
+  KEGIATAN_BESAR: "Sosialisasikan kewajiban hadir minimal 4 dari 6 kegiatan besar sejak awal, kirim pengingat sebelum tiap kegiatan, dan cari tahu penyebab absen di kegiatan dengan kehadiran terendah.",
+  INCLENATION: "Evaluasi hambatan kehadiran Inclenation (jadwal, informasi, akses) untuk angkatan berikutnya.",
 };
