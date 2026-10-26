@@ -25,6 +25,7 @@ import {
   DEFAULT_PERSONAL_COMPONENT_WEIGHTS,
   DEFAULT_SKILL_COMPONENT_WEIGHTS,
   DEFAULT_PREDICATE_THRESHOLDS,
+  DEFAULT_RAPORT_THANK_YOU_MESSAGE,
 } from "@/lib/scoring/setting-keys";
 
 type SettingData = {
@@ -108,6 +109,9 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
   const [personalWeights, setPersonalWeights] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(initialPersonalWeights).map(([k, v]) => [k, String(v)])),
   );
+  const [raportThankYou, setRaportThankYou] = useState(
+    String(getSettingValue(SETTING_KEYS.raportThankYouMessage, DEFAULT_RAPORT_THANK_YOU_MESSAGE)),
+  );
   // Rekap: predikat bands for the pie charts
   const initialThresholds = { ...DEFAULT_PREDICATE_THRESHOLDS, ...getSettingValue(SETTING_KEYS.recapPredicateThresholds, {}) };
   const [thresholds, setThresholds] = useState<Record<string, string>>(
@@ -158,6 +162,7 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
         [SETTING_KEYS.participationMapping]: participationMapping,
         [SETTING_KEYS.personalComponentWeights]: Object.fromEntries(Object.entries(personalWeights).map(([k, v]) => [k, Number(v)])),
         [SETTING_KEYS.skillComponentWeights]: Object.fromEntries(Object.entries(skillWeights).map(([k, v]) => [k, Number(v)])),
+        [SETTING_KEYS.raportThankYouMessage]: raportThankYou.trim() ? raportThankYou : DEFAULT_RAPORT_THANK_YOU_MESSAGE,
         [SETTING_KEYS.recapPredicateThresholds]: Object.fromEntries(Object.entries(thresholds).map(([k, v]) => [k, Number(v)])),
       };
 
@@ -421,6 +426,28 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
                 rows={3}
               />
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Raport PDF maba */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <MessageSquare className="size-4 text-primary" />
+              Raport PDF Maba
+            </CardTitle>
+            <CardDescription className="text-[10px]">
+              Paragraf penutup / ucapan terima kasih pada PDF raport yang diunduh maba dari halaman Cek Raport.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="raport-thank-you">Ucapan Terima Kasih</Label>
+              <Button type="button" size="xs" variant="ghost" onClick={() => setRaportThankYou(DEFAULT_RAPORT_THANK_YOU_MESSAGE)}>
+                Pakai teks bawaan
+              </Button>
+            </div>
+            <Textarea id="raport-thank-you" value={raportThankYou} onChange={(e) => setRaportThankYou(e.target.value)} rows={5} />
           </CardContent>
         </Card>
 

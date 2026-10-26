@@ -17,6 +17,7 @@ export const SETTING_KEYS = {
   participationMapping: "attendance.participationMapping",
   personalComponentWeights: "weights.personalComponents",
   recapPredicateThresholds: "recap.predicateThresholds",
+  raportThankYouMessage: "raport.thankYouMessage",
   skillComponentWeights: "weights.skillComponents",
 } as const;
 
@@ -104,3 +105,10 @@ export const RECAP_ASPECTS: Array<{ code: string; label: string; group: string }
   { code: "KEGIATAN_BESAR", label: "Kehadiran Kegiatan Besar", group: "Kehadiran" },
   { code: "INCLENATION", label: "Kehadiran Inclenation", group: "Kehadiran" },
 ];
+
+/** Closing paragraph on the maba's downloadable PDF raport — editable in Settings. */
+export const DEFAULT_RAPORT_THANK_YOU_MESSAGE =
+  "Terima kasih atas partisipasi dan semangat Anda selama rangkaian GRADAKS 2026. Raport ini merangkum perjalanan " +
+  "pengembangan Anda, mulai dari kehadiran, keaktifan, hingga penilaian materi, sebagai bahan refleksi untuk terus " +
+  "bertumbuh. Seluruh data pengembangan Anda juga diteruskan kepada Himpunan Mahasiswa Departemen (HMD) sebagai bekal " +
+  "pendampingan selanjutnya. Selamat berproses dan terus berkontribusi untuk FTEIC!";

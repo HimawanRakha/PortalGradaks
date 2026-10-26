@@ -41,8 +41,8 @@ function ExpandableCard({
         aria-expanded={open}
         className="flex w-full items-center justify-between gap-2 p-3 text-left"
       >
-        <span className="min-w-0">
-          <span className="block text-sm font-semibold">{title}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block break-words text-sm font-semibold">{title}</span>
           {subtitle ? <span className="block text-[10px] text-muted-foreground">{subtitle}</span> : null}
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
@@ -61,7 +61,7 @@ function ItemList({ items }: { items: WeightedItem[] }) {
     <div className="space-y-1">
       {items.map((item, i) => (
         <div key={`${item.refCode}-${i}`} className="flex items-start justify-between gap-2 text-[11px]">
-          <span className="min-w-0">
+          <span className="min-w-0 flex-1">
             <span className="block truncate">{item.label}</span>
             <span className="block truncate text-[10px] text-muted-foreground">
               {item.source} · {ORIGIN_LABELS[item.origin]}
@@ -84,7 +84,7 @@ function SessionStatusList({ section }: { section: AttendanceSection }) {
     <div className="space-y-1">
       {section.entries.map((e) => (
         <div key={e.sessionId} className="flex items-center justify-between gap-2 text-[11px]">
-          <span className="min-w-0 truncate">
+          <span className="min-w-0 flex-1 truncate">
             {e.sessionName}
             {e.derivedFromScores ? <span className="text-[10px] text-muted-foreground"> (dari nilai kuis)</span> : null}
           </span>
@@ -158,7 +158,7 @@ export function ScoreBreakdownList({ computed }: { computed: ComputedScores }) {
 
       <div className="space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Nilai Keahlian — klik untuk rincian</p>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-2">
           {skill.categories.map((cat) => (
             <ExpandableCard
               key={cat.code}

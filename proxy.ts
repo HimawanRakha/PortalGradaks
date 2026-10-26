@@ -15,7 +15,7 @@ export default auth((req) => {
   // (they're POSTs to their originating page), so both the public NRP/Unit
   // lookup and the login form submission can be throttled from one place.
   const isPublicLookup =
-    (pathname === "/cek-raport" && req.nextUrl.searchParams.has("nrp")) ||
+    ((pathname === "/cek-raport" || pathname === "/cek-raport/pdf") && req.nextUrl.searchParams.has("nrp")) ||
     (pathname === "/cek-unit" && req.nextUrl.searchParams.has("unit"));
   if (isPublicLookup) {
     const ip = getClientIp(req);

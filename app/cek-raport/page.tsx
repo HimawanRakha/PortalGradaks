@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CheckCircle2, TriangleAlert } from "lucide-react";
+import { CheckCircle2, FileDown, TriangleAlert } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { computeScores } from "@/lib/scoring/calculate";
 import { StudentRaportView, studentRaportInclude } from "@/components/scoring/student-raport-view";
@@ -75,7 +75,7 @@ export default async function CekRaportPage({ searchParams }: { searchParams: Pr
         ) : null}
 
         {student && computed ? (
-          <div className="w-full space-y-4">
+          <div className="w-full min-w-0 space-y-4">
             <div className="text-center">
               <h2 className="text-xl font-semibold">{student.name}</h2>
               <p className="text-sm text-muted-foreground">
@@ -118,6 +118,22 @@ export default async function CekRaportPage({ searchParams }: { searchParams: Pr
                 </AlertDescription>
               </Alert>
             )}
+
+            {/* Deliberately not the primary-button look: this is the one action
+                maba should spot instantly, so it gets its own solid red + PDF icon. */}
+            <Button
+              className="h-auto w-full gap-3 border-0 bg-red-600 py-3 text-white hover:bg-red-700"
+              nativeButton={false}
+              render={<a href={`/cek-raport/pdf?nrp=${encodeURIComponent(student.nrp)}`} download />}
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/20">
+                <FileDown className="size-5" />
+              </span>
+              <span className="flex flex-col items-start text-left leading-tight">
+                <span className="text-sm font-semibold">Unduh Raport (PDF)</span>
+                <span className="text-[11px] font-normal text-white/85">Rekap resmi 1 halaman · siap disimpan & dicetak</span>
+              </span>
+            </Button>
 
             <StudentRaportView student={student} computed={computed} />
           </div>
