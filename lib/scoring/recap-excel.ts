@@ -4,10 +4,11 @@ import {
   buildRecapView,
   SUB_NILAI_LABELS,
   SKILL_LABELS,
-  type InsightSettings,
+  type RecapSettings,
   type RecapData,
   type RecapRow,
 } from "./recap";
+import type { ComputedScores, ItemOrigin } from "./calculate";
 
 /** Same formula-injection guard as the main export (names come from CSV imports). */
 function sanitizeCell<T>(value: T): T {
@@ -143,6 +144,146 @@ function addDataSheet(workbook: ExcelJS.Workbook, name: string, rows: RecapRow[]
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columnCount } };
 }
 
+const ORIGIN_LABELS: Record<ItemOrigin, string> = {
+  MENTOR: "Mentor",
+  IMPORT: "Impor",
+  KELOMPOK: "Kelompok",
+  KOSONG: "Belum diisi (= 0)",
+  KEAKTIFAN: "Keaktifan sesi (mentor)",
+  KEHADIRAN: "Kehadiran",
+};
+const STATUS_SCORE_LABEL: Record<string, string> = { HADIR: "Hadir", IZIN: "Izin", ALPA: "Alpa" };
+
+const MABA_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDBEAFE" } };
+const GROUP_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF3F4F6" } };
+
+/**
+ * Every maba's raw values, laid out like the Cek Raport page: a highlighted
+ * summary row per maba, then Komponen Nilai Personal, kehadiran per sesi,
+ * Penilaian Materi per Sub-Nilai (each raw value with its scale, source and
+ * who entered it), and Nilai Keahlian per kategori. NRP/Nama repeat on every
+ * row so Excel's filter can isolate one maba.
+ */
+function addRawLogSheet(workbook: ExcelJS.Workbook, rows: RecapRow[], computedByNrp: Map<string, ComputedScores>) {
+  const ws = workbook.addWorksheet("Log Nilai Mentah");
+  ws.columns = [
+    { header: "NRP", key: "nrp", width: 13 },
+    { header: "Nama", key: "name", width: 26 },
+    { header: "Bagian", key: "part", width: 22 },
+    { header: "Kelompok", key: "group", width: 26 },
+    { header: "Item", key: "item", width: 44 },
+    { header: "Sumber (Materi · Kegiatan)", key: "source", width: 36 },
+    { header: "Nilai Asli", key: "raw", width: 10 },
+    { header: "Skala Maks", key: "max", width: 10 },
+    { header: "Nilai (0–100)", key: "norm", width: 12 },
+    { header: "Keterangan", key: "note", width: 34 },
+  ];
+  styleHeader(ws.getRow(1));
+  ws.views = [{ state: "frozen", xSplit: 2, ySplit: 1 }];
+
+  const n = (v: number | null | undefined) => (v === null || v === undefined ? null : Number(v.toFixed(2)));
+  for (const r of rows) {
+    const c = computedByNrp.get(r.nrp);
+    if (!c) continue;
+    const base = { nrp: sanitizeCell(r.nrp), name: sanitizeCell(r.name) };
+    const add = (values: Record<string, unknown>, fill?: ExcelJS.Fill, bold = false) => {
+      const row = ws.addRow({ ...base, ...values });
+      if (fill) row.eachCell({ includeEmpty: true }, (cell) => (cell.fill = fill));
+      if (bold) row.font = { bold: true };
+    };
+
+    add(
+      {
+        part: "RINGKASAN MABA",
+        group: `${r.departmentName} · ${r.unit}`,
+        item: `Nilai Personal ${n(r.personal) ?? "-"} · Nilai Keahlian ${n(r.skill) ?? "-"}`,
+        note: r.eligible ? "Layak diagregasi" : `Tidak layak: ${r.reasons.join("; ")}`,
+      },
+      MABA_FILL,
+      true,
+    );
+
+    for (const comp of c.personal.components) {
+      add({
+        part: "Nilai Personal",
+        group: "Komponen",
+        item: comp.label,
+        norm: n(comp.score),
+        note: comp.score === null ? "belum ada data" : `bobot ${Math.round(comp.effectiveWeight * 100)}%`,
+      });
+    }
+
+    for (const sec of c.attendance) {
+      for (const e of sec.entries) {
+        add({
+          part: "Kehadiran",
+          group: sec.label,
+          item: e.sessionName,
+          source: e.activityName,
+          raw: e.status ? STATUS_SCORE_LABEL[e.status] : "-",
+          norm: e.status === null ? null : e.status === "HADIR" ? 100 : e.status === "IZIN" ? 50 : 0,
+          note: [
+            e.status === null ? "belum terlaksana/diimpor" : "",
+            e.derivedFromScores ? "dari nilai kuis (ada nilai = hadir)" : "",
+            e.participationScore ? `keaktifan ${e.participationScore}/4` : "",
+          ]
+            .filter(Boolean)
+            .join("; "),
+        });
+      }
+    }
+
+    for (const group of c.personal.groups) {
+      for (const sub of group.subNilai) {
+        add({ part: "Penilaian Materi", group: `${group.label} — ${sub.code} ${sub.label}`, item: "Nilai Sub-Nilai", norm: n(sub.score) }, GROUP_FILL, true);
+        for (const item of c.personal.items.filter((i) => i.targets.includes(sub.code))) {
+          add({
+            part: "Penilaian Materi",
+            group: `${sub.code} ${sub.label}`,
+            item: item.label,
+            source: item.source,
+            raw: item.rawValue,
+            max: item.maxValue,
+            norm: n(item.normalizedValue),
+            note: ORIGIN_LABELS[item.origin],
+          });
+        }
+      }
+    }
+
+    for (const cat of c.skill.categories) {
+      add(
+        {
+          part: "Nilai Keahlian",
+          group: cat.label,
+          item: "Nilai Kategori",
+          norm: n(cat.score),
+          note: `mentor ${n(cat.mentorScore) ?? "-"} · kegiatan ${n(cat.activityScore) ?? "-"}`,
+        },
+        GROUP_FILL,
+        true,
+      );
+      for (const item of c.skill.items.filter((i) => i.targets.includes(cat.code))) {
+        add({
+          part: "Nilai Keahlian",
+          group: cat.label,
+          item: item.label,
+          source: item.source,
+          raw: item.rawValue,
+          max: item.maxValue,
+          norm: n(item.normalizedValue),
+          note: ORIGIN_LABELS[item.origin],
+        });
+      }
+      for (const a of cat.activities) {
+        add({ part: "Nilai Keahlian", group: cat.label, item: `Kegiatan keahlian: ${a}`, raw: "Hadir", norm: 100, note: "Kegiatan Keahlian" });
+      }
+    }
+    ws.addRow({});
+  }
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columnCount } };
+}
+
 /**
  * The recap as an Excel workbook — Penjelasan, Ringkasan & Grafik (data bars),
  * per-maba data and the tidak-layak list — for the whole cohort or one
@@ -150,12 +291,14 @@ function addDataSheet(workbook: ExcelJS.Workbook, name: string, rows: RecapRow[]
  */
 export function buildRecapWorkbook(
   data: RecapData,
-  settings: InsightSettings,
+  settings: RecapSettings,
   dept: string | null,
+  /** Full per-maba results (by NRP); when given, adds the "Log Nilai Mentah" sheet. */
+  computedByNrp?: Map<string, ComputedScores>,
 ): { workbook: ExcelJS.Workbook; slug: string } {
   const { meta } = data;
   const view = buildRecapView(data, settings, dept);
-  const { departments, activeDept, scoped, stats, pies, besar, insights } = view;
+  const { departments, activeDept, scoped, stats, pies, besar } = view;
   const exp = view.explanations;
   const scopeName = activeDept ? activeDept.name : "Seluruh Departemen";
 
@@ -202,26 +345,7 @@ export function buildRecapWorkbook(
     "Grafik di sheet Ringkasan & Grafik ditampilkan sebagai batang data (data bar) di dalam sel. Tabel angkanya bisa langsung diblok lalu Insert → Chart bila ingin grafik Excel biasa.",
   ]).getCell(2).alignment = { wrapText: true };
 
-  // ---- Sheet 2: Insight & Rekomendasi ----
-  const ins = workbook.addWorksheet("Insight & Rekomendasi");
-  ins.columns = [
-    { header: "No", key: "no", width: 5 },
-    { header: "Jenis", key: "tone", width: 14 },
-    { header: "Insight", key: "title", width: 42 },
-    { header: "Detail", key: "detail", width: 60 },
-    { header: "Rekomendasi", key: "rec", width: 70 },
-  ];
-  styleHeader(ins.getRow(1));
-  const TONE_LABEL = { warning: "Perlu perhatian", info: "Catatan", positive: "Kekuatan" } as const;
-  insights.forEach((i, idx) => {
-    const row = ins.addRow({ no: idx + 1, tone: TONE_LABEL[i.tone], title: i.title, detail: i.detail, rec: i.recommendation ?? "-" });
-    row.alignment = { wrapText: true, vertical: "top" };
-    row.getCell("tone").font = { bold: true, color: { argb: i.tone === "warning" ? "FFDC2626" : i.tone === "positive" ? "FF059669" : "FFD97706" } };
-  });
-  ins.addRow([]);
-  ins.addRow(["", "", exp.insights]).getCell(3).alignment = { wrapText: true };
-
-  // ---- Sheet 3: Ringkasan & Grafik ----
+  // ---- Sheet 2: Ringkasan & Grafik ----
   const sum = workbook.addWorksheet("Ringkasan & Grafik");
   sum.getColumn(1).width = 30;
   for (let c = 2; c <= 6; c++) sum.getColumn(c).width = 16;
@@ -280,6 +404,7 @@ export function buildRecapWorkbook(
   addDataSheet(workbook, "Data Maba", scoped);
   const ineligible = scoped.filter((r) => !r.eligible);
   if (ineligible.length > 0) addDataSheet(workbook, "Tidak Layak Diagregasi", ineligible);
+  if (computedByNrp) addRawLogSheet(workbook, scoped, computedByNrp);
 
   const slug = (activeDept?.code ?? "SEMUA").replace(/[^A-Za-z0-9_-]/g, "");
   return { workbook, slug };

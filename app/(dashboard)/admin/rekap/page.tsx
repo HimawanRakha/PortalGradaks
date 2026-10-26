@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Download, Info } from "lucide-react";
 import { assertRole } from "@/lib/auth/dal";
 import { Role } from "@/app/generated/prisma/enums";
-import { getRecapData, getInsightSettings, buildRecapView } from "@/lib/scoring/recap";
-import { BesarPieGrid, InsightList, PredicatePieGrid } from "@/components/admin/recap-insights";
+import { getRecapData, getRecapSettings, buildRecapView } from "@/lib/scoring/recap";
+import { BesarPieGrid, PredicatePieGrid } from "@/components/admin/recap-pies";
 import { RecapCharts } from "@/components/admin/recap-charts";
 import { RecapRefreshButton } from "@/components/admin/recap-refresh-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,9 +19,9 @@ export default async function RekapPage({ searchParams }: { searchParams: Promis
   await assertRole(Role.ADMIN);
   const { dept } = await searchParams;
 
-  const [data, insightSettings] = await Promise.all([getRecapData(), getInsightSettings()]);
+  const [data, recapSettings] = await Promise.all([getRecapData(), getRecapSettings()]);
   const { meta } = data;
-  const { departments, activeDept, stats, pies, besar, insights, explanations } = buildRecapView(data, insightSettings, dept ?? null);
+  const { departments, activeDept, stats, pies, besar, explanations } = buildRecapView(data, recapSettings, dept ?? null);
   const exportHref = `/api/export/rekap${activeDept ? `?dept=${encodeURIComponent(activeDept.code)}` : ""}`;
 
   const tabs = [{ code: null as string | null, label: "Semua" }, ...departments.map((d) => ({ code: d.code, label: d.name }))];
@@ -73,8 +73,6 @@ export default async function RekapPage({ searchParams }: { searchParams: Promis
         <StatTile label="Rata-rata Nilai Personal" value={fmt(stats.personal.mean)} hint={`median ${fmt(stats.personal.median)} · SD ${fmt(stats.personal.std)}`} />
         <StatTile label="Rata-rata Nilai Keahlian" value={fmt(stats.skill.mean)} hint={`median ${fmt(stats.skill.median)} · SD ${fmt(stats.skill.std)}`} />
       </div>
-
-      <InsightList description={explanations.insights} insights={insights} />
 
       <PredicatePieGrid
         title="Pemetaan Sub-Nilai Personal"

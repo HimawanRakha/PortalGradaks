@@ -1,11 +1,10 @@
 "use client";
 
 import { Cell, Label, Pie, PieChart } from "recharts";
-import { AlertTriangle, Info, Lightbulb, ThumbsUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
-import type { BesarSessionStat, Insight, PredicatePie } from "@/lib/scoring/recap";
+import type { BesarSessionStat, PredicatePie } from "@/lib/scoring/recap";
 
 const PREDICATE_COLORS: Record<string, string> = {
   "Sangat Baik": "var(--chart-4)",
@@ -153,48 +152,6 @@ export function BesarPieGrid({ description, sessions }: { description: string; s
                   </p>
                 </>
               )}
-            </div>
-          );
-        })}
-      </CardContent>
-    </Card>
-  );
-}
-
-const TONE = {
-  warning: { icon: AlertTriangle, className: "border-destructive/40 bg-destructive/5", iconClass: "text-destructive" },
-  info: { icon: Info, className: "border-amber-500/40 bg-amber-500/5", iconClass: "text-amber-600 dark:text-amber-400" },
-  positive: { icon: ThumbsUp, className: "border-emerald-600/40 bg-emerald-600/5", iconClass: "text-emerald-600" },
-} as const;
-
-export function InsightList({ description, insights }: { description: string; insights: Insight[] }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-1.5 text-sm">
-          <Lightbulb className="size-4 text-primary" />
-          Insight & Rekomendasi
-        </CardTitle>
-        <CardDescription className="text-xs">{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-3 md:grid-cols-2">
-        {insights.length === 0 ? <p className="text-xs text-muted-foreground">Belum ada data yang cukup untuk insight.</p> : null}
-        {insights.map((ins, i) => {
-          const tone = TONE[ins.tone];
-          const Icon = tone.icon;
-          return (
-            <div key={i} className={cn("space-y-1.5 rounded-lg border p-3", tone.className)}>
-              <p className="flex items-start gap-1.5 text-sm font-semibold">
-                <Icon className={cn("mt-0.5 size-4 shrink-0", tone.iconClass)} />
-                {ins.title}
-              </p>
-              <p className="text-xs text-muted-foreground">{ins.detail}</p>
-              {ins.recommendation ? (
-                <p className="rounded-md bg-background/70 p-2 text-xs">
-                  <span className="font-semibold">Rekomendasi: </span>
-                  {ins.recommendation}
-                </p>
-              ) : null}
             </div>
           );
         })}

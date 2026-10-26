@@ -25,8 +25,6 @@ import {
   DEFAULT_PERSONAL_COMPONENT_WEIGHTS,
   DEFAULT_SKILL_COMPONENT_WEIGHTS,
   DEFAULT_PREDICATE_THRESHOLDS,
-  DEFAULT_INSIGHT_RECOMMENDATIONS,
-  INSIGHT_ASPECTS,
 } from "@/lib/scoring/setting-keys";
 
 type SettingData = {
@@ -110,14 +108,10 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
   const [personalWeights, setPersonalWeights] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(initialPersonalWeights).map(([k, v]) => [k, String(v)])),
   );
-  // Rekap: predikat bands for the pie charts + per-aspect recommendation text
+  // Rekap: predikat bands for the pie charts
   const initialThresholds = { ...DEFAULT_PREDICATE_THRESHOLDS, ...getSettingValue(SETTING_KEYS.recapPredicateThresholds, {}) };
   const [thresholds, setThresholds] = useState<Record<string, string>>(
     Object.fromEntries(Object.entries(initialThresholds).map(([k, v]) => [k, String(v)])),
-  );
-  const savedRecommendations = getSettingValue(SETTING_KEYS.recapRecommendations, {}) as Record<string, string>;
-  const [recommendations, setRecommendations] = useState<Record<string, string>>(
-    Object.fromEntries(INSIGHT_ASPECTS.map((a) => [a.code, savedRecommendations[a.code] || DEFAULT_INSIGHT_RECOMMENDATIONS[a.code]])),
   );
 
   const initialSkillWeights = { ...DEFAULT_SKILL_COMPONENT_WEIGHTS, ...getSettingValue(SETTING_KEYS.skillComponentWeights, {}) };
@@ -165,7 +159,6 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
         [SETTING_KEYS.personalComponentWeights]: Object.fromEntries(Object.entries(personalWeights).map(([k, v]) => [k, Number(v)])),
         [SETTING_KEYS.skillComponentWeights]: Object.fromEntries(Object.entries(skillWeights).map(([k, v]) => [k, Number(v)])),
         [SETTING_KEYS.recapPredicateThresholds]: Object.fromEntries(Object.entries(thresholds).map(([k, v]) => [k, Number(v)])),
-        [SETTING_KEYS.recapRecommendations]: recommendations,
       };
 
       const res = await updateSettingsAction(settings);
@@ -431,16 +424,15 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
           </CardContent>
         </Card>
 
-        {/* Rekap Nilai: predikat & rekomendasi insight */}
+        {/* Rekap Nilai: batas predikat */}
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <AlertCircle className="size-4 text-primary" />
-              Rekap Nilai: Predikat & Rekomendasi Insight
+              Rekap Nilai: Batas Predikat
             </CardTitle>
             <CardDescription className="text-[10px]">
-              Batas predikat dipakai diagram lingkaran di halaman Rekap Nilai dan Excel-nya. Teks rekomendasi muncul di bawah insight
-              ketika aspek tersebut terdeteksi lemah.
+              Batas predikat dipakai diagram lingkaran di halaman Rekap Nilai dan Excel-nya.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -456,32 +448,6 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
                     value={thresholds[f.key] ?? ""}
                     onChange={(e) => setThresholds((prev) => ({ ...prev, [f.key]: e.target.value }))}
                     className="h-7 text-xs font-mono font-bold"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              {INSIGHT_ASPECTS.map((a) => (
-                <div key={a.code} className="grid gap-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor={`rec-${a.code}`} className="text-[11px] font-medium">
-                      {a.group} — {a.label}
-                    </Label>
-                    <Button
-                      type="button"
-                      size="xs"
-                      variant="ghost"
-                      onClick={() => setRecommendations((prev) => ({ ...prev, [a.code]: DEFAULT_INSIGHT_RECOMMENDATIONS[a.code] }))}
-                    >
-                      Bawaan
-                    </Button>
-                  </div>
-                  <Textarea
-                    id={`rec-${a.code}`}
-                    value={recommendations[a.code] ?? ""}
-                    onChange={(e) => setRecommendations((prev) => ({ ...prev, [a.code]: e.target.value }))}
-                    rows={3}
-                    className="text-xs"
                   />
                 </div>
               ))}

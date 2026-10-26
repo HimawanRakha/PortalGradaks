@@ -2,12 +2,11 @@ import "server-only";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { AttendanceCategory, AttendanceStatus } from "@/app/generated/prisma/enums";
-import { computeScoresForStudents, loadScoringContext } from "./calculate";
+import { computeScoresForStudents, loadScoringContext, type ComputedScores } from "./calculate";
 import {
   SETTING_KEYS,
   DEFAULT_PREDICATE_THRESHOLDS,
-  DEFAULT_INSIGHT_RECOMMENDATIONS,
-  INSIGHT_ASPECTS,
+  RECAP_ASPECTS,
 } from "./setting-keys";
 
 export const RECAP_CACHE_TAG = "recap";
@@ -48,7 +47,12 @@ export type RecapData = { rows: RecapRow[]; meta: RecapMeta };
 
 const NO_DEPARTMENT = { code: "-", name: "Tanpa Departemen" };
 
-export async function loadRecapData(): Promise<RecapData> {
+/**
+ * Recap rows plus every maba's full ComputedScores (keyed by NRP) — the
+ * latter is far too big to cache, so only the Excel export asks for it, to
+ * write the per-maba raw value log.
+ */
+export async function loadRecapComputation(): Promise<{ data: RecapData; computedByNrp: Map<string, ComputedScores> }> {
   const [students, ctx] = await Promise.all([
     prisma.student.findMany({
       where: { active: true },
@@ -116,7 +120,7 @@ export async function loadRecapData(): Promise<RecapData> {
     .filter((x) => x.activity.attendanceCategory === AttendanceCategory.KEGIATAN_BESAR)
     .map((x) => ({ code: x.code, name: x.name }))
     .sort((a, b) => rank(a.code) - rank(b.code) || a.code.localeCompare(b.code));
-  return {
+  const data: RecapData = {
     rows,
     meta: {
       generatedAt: new Date().toISOString(),
@@ -129,6 +133,16 @@ export async function loadRecapData(): Promise<RecapData> {
       kegiatanBesarList,
     },
   };
+  const computedByNrp = new Map<string, ComputedScores>();
+  for (const s of students) {
+    const c = computed.get(s.id);
+    if (c) computedByNrp.set(s.nrp, c);
+  }
+  return { data, computedByNrp };
+}
+
+export async function loadRecapData(): Promise<RecapData> {
+  return (await loadRecapComputation()).data;
 }
 
 /**
@@ -306,38 +320,27 @@ export function recapExplanations(meta: RecapMeta) {
     predicatePies:
       "Tiap lingkaran = satu aspek; potongannya adalah persentase maba (layak diagregasi) di predikat Sangat Baik ≥{sb}, Baik ≥{b}, Cukup ≥{c}, dan Kurang. Potongan Cukup + Kurang yang besar menandakan aspek yang perlu perhatian.",
     besarPies: `Tiap lingkaran = satu Kegiatan Besar: persentase maba Hadir / Izin / Alpa. Kegiatan yang datanya belum diimpor ditandai "belum terlaksana".`,
-    insights: `Insight dipilih otomatis: 3 aspek dengan rata-rata terendah, aspek yang jauh di bawah rata-rata fakultas (khusus tab departemen), kegiatan besar dengan kehadiran terendah, jumlah maba tidak layak, dan aspek terkuat. Teks rekomendasi dapat diubah di Master Data → Settings.`,
   };
 }
 
 // ============================================================
-// Predikat mapping, Kegiatan Besar detail & insights
+// Predikat mapping & Kegiatan Besar detail
 // ============================================================
 
 export type PredicateThresholds = typeof DEFAULT_PREDICATE_THRESHOLDS;
-export type InsightSettings = { thresholds: PredicateThresholds; recommendations: Record<string, string> };
+export type RecapSettings = { thresholds: PredicateThresholds };
 
 /** Read fresh on every request (not cached) so Settings edits apply immediately. */
-export async function getInsightSettings(): Promise<InsightSettings> {
-  const rows = await prisma.setting.findMany({
-    where: { key: { in: [SETTING_KEYS.recapPredicateThresholds, SETTING_KEYS.recapRecommendations] } },
-  });
-  const value = (key: string) => rows.find((r) => r.key === key)?.value as Record<string, unknown> | undefined;
-  const t = value(SETTING_KEYS.recapPredicateThresholds) ?? {};
+export async function getRecapSettings(): Promise<RecapSettings> {
+  const row = await prisma.setting.findUnique({ where: { key: SETTING_KEYS.recapPredicateThresholds } });
+  const t = (row?.value as Record<string, unknown> | undefined) ?? {};
   const num = (v: unknown, fallback: number) => (typeof v === "number" ? v : fallback);
-  const recs = value(SETTING_KEYS.recapRecommendations) ?? {};
   return {
     thresholds: {
       sangatBaik: num(t.sangatBaik, DEFAULT_PREDICATE_THRESHOLDS.sangatBaik),
       baik: num(t.baik, DEFAULT_PREDICATE_THRESHOLDS.baik),
       cukup: num(t.cukup, DEFAULT_PREDICATE_THRESHOLDS.cukup),
     },
-    recommendations: Object.fromEntries(
-      INSIGHT_ASPECTS.map((a) => {
-        const custom = recs[a.code];
-        return [a.code, typeof custom === "string" && custom.trim() ? custom : DEFAULT_INSIGHT_RECOMMENDATIONS[a.code]];
-      }),
-    ),
   };
 }
 
@@ -377,7 +380,7 @@ function aspectValue(r: RecapRow, code: string): number | null {
 /** One pie per aspect: how the layak-diagregasi maba split across the 4 predikat. */
 export function buildPredicatePies(rows: RecapRow[], t: PredicateThresholds): PredicatePie[] {
   const ok = rows.filter((r) => r.eligible);
-  return INSIGHT_ASPECTS.map((a) => {
+  return RECAP_ASPECTS.map((a) => {
     const values = ok.map((r) => aspectValue(r, a.code)).filter((v): v is number => v !== null);
     const counts = Object.fromEntries(PREDICATES.map((p) => [p, 0])) as Record<Predicate, number>;
     for (const v of values) counts[predicateOf(v, t)]++;
@@ -421,98 +424,11 @@ export function buildKegiatanBesarStats(rows: RecapRow[], meta: RecapMeta): Besa
   });
 }
 
-export type Insight = {
-  tone: "warning" | "info" | "positive";
-  title: string;
-  detail: string;
-  recommendation: string | null;
-};
-
-/**
- * Turns the pies into a short, ranked list of findings with a follow-up for
- * each: the 3 weakest aspects, (per department) aspects clearly below the
- * faculty average, the worst-attended Kegiatan Besar, the attendance gate,
- * and the strongest aspect as something to keep.
- */
-export function buildInsights(opts: {
-  pies: PredicatePie[];
-  facultyPies: PredicatePie[] | null;
-  besar: BesarSessionStat[];
-  stats: RecapStats;
-  settings: InsightSettings;
-  scopeName: string;
-}): Insight[] {
-  const { pies, facultyPies, besar, stats, settings, scopeName } = opts;
-  const rec = (code: string) => settings.recommendations[code] ?? null;
-  const insights: Insight[] = [];
-  const scored = pies.filter((p) => p.mean !== null && p.group !== "Kehadiran");
-  const byMean = [...scored].sort((a, b) => a.mean! - b.mean!);
-  const weakest = byMean.slice(0, 3);
-
-  for (const p of weakest) {
-    insights.push({
-      tone: p.lowPct >= 25 ? "warning" : "info",
-      title: `${p.label} termasuk aspek terendah`,
-      detail: `Rata-rata ${p.mean!.toFixed(1)}; ${p.lowPct}% maba ${scopeName} berada di predikat Cukup/Kurang.`,
-      recommendation: rec(p.code),
-    });
-  }
-
-  if (facultyPies) {
-    const gaps = scored
-      .map((p) => ({ p, faculty: facultyPies.find((f) => f.code === p.code)?.mean ?? null }))
-      .filter((x): x is { p: PredicatePie; faculty: number } => x.faculty !== null && x.p.mean! < x.faculty - 2)
-      .filter((x) => !weakest.some((w) => w.code === x.p.code))
-      .sort((a, b) => a.p.mean! - a.faculty - (b.p.mean! - b.faculty))
-      .slice(0, 3);
-    for (const { p, faculty } of gaps) {
-      insights.push({
-        tone: "warning",
-        title: `${p.label} di bawah rata-rata fakultas`,
-        detail: `${scopeName} ${p.mean!.toFixed(1)} vs fakultas ${faculty.toFixed(1)} (selisih ${(faculty - p.mean!).toFixed(1)} poin).`,
-        recommendation: rec(p.code),
-      });
-    }
-  }
-
-  const heldBesar = besar.filter((b) => b.held && b.hadirPct !== null);
-  if (heldBesar.length > 0) {
-    const worst = [...heldBesar].sort((a, b) => a.hadirPct! - b.hadirPct!)[0];
-    const pending = besar.filter((b) => !b.held).map((b) => b.name);
-    insights.push({
-      tone: worst.hadirPct! < 80 ? "warning" : "info",
-      title: `Kehadiran terendah Kegiatan Besar: ${worst.name}`,
-      detail: `${worst.hadirPct}% hadir (${worst.izin} izin, ${worst.alpa} alpa).${pending.length > 0 ? ` Belum ada data: ${pending.join(", ")}.` : ""}`,
-      recommendation: rec("KEGIATAN_BESAR"),
-    });
-  }
-
-  if (stats.ineligible > 0) {
-    insights.push({
-      tone: "warning",
-      title: `${stats.ineligible} maba tidak layak diagregasi`,
-      detail: `Absen Temu FTEIC melebihi batas: ${stats.ineligibleTemu} maba; absen Kegiatan Besar melebihi batas: ${stats.ineligibleBesar} maba. Daftar lengkap ada di sheet "Tidak Layak Diagregasi" pada Excel.`,
-      recommendation: rec(stats.ineligibleTemu >= stats.ineligibleBesar ? "TEMU_FTEIC" : "KEGIATAN_BESAR"),
-    });
-  }
-
-  const best = byMean.at(-1);
-  if (best) {
-    insights.push({
-      tone: "positive",
-      title: `Kekuatan: ${best.label}`,
-      detail: `Rata-rata tertinggi (${best.mean!.toFixed(1)}); ${best.slices[0].pct}% maba di predikat Sangat Baik. Pertahankan pendekatan yang sudah berjalan.`,
-      recommendation: null,
-    });
-  }
-  return insights;
-}
-
 /**
  * Everything the recap page and its Excel export show for one scope (whole
  * faculty or one department) — built in one place so both stay identical.
  */
-export function buildRecapView(data: RecapData, settings: InsightSettings, deptCode: string | null) {
+export function buildRecapView(data: RecapData, settings: RecapSettings, deptCode: string | null) {
   const { rows, meta } = data;
   const departments = buildDepartmentStats(rows);
   const activeDept = departments.find((d) => d.code === deptCode) ?? null;
@@ -523,13 +439,5 @@ export function buildRecapView(data: RecapData, settings: InsightSettings, deptC
   const besar = buildKegiatanBesarStats(scoped, meta);
   const base = recapExplanations(meta);
   const explanations = { ...base, predicatePies: predicateExplanation(base.predicatePies, settings.thresholds) };
-  const insights = buildInsights({
-    pies,
-    facultyPies: activeDept ? buildPredicatePies(rows, settings.thresholds) : null,
-    besar,
-    stats,
-    settings,
-    scopeName,
-  });
-  return { departments, activeDept, scoped, scopeName, stats, pies, besar, insights, explanations };
+  return { departments, activeDept, scoped, scopeName, stats, pies, besar, explanations };
 }
