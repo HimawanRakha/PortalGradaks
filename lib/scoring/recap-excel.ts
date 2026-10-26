@@ -298,7 +298,7 @@ export function buildRecapWorkbook(
 ): { workbook: ExcelJS.Workbook; slug: string } {
   const { meta } = data;
   const view = buildRecapView(data, settings, dept);
-  const { departments, activeDept, scoped, stats, pies, besar, keahlian } = view;
+  const { departments, activeDept, scoped, stats, pies, besar, temu, inclenation, keahlian } = view;
   const exp = view.explanations;
   const scopeName = activeDept ? activeDept.name : "Seluruh Departemen";
 
@@ -325,6 +325,8 @@ export function buildRecapWorkbook(
   info.addRow(["Penjelasan grafik (sheet Ringkasan & Grafik)"]).font = { bold: true, size: 12 };
   const chartNotes: Array<[string, string]> = [
     ["Pemetaan Predikat per Aspek", exp.predicatePies],
+    ["Kehadiran per Sesi Temu FTEIC", exp.temuPies],
+    ["Kehadiran Inclenation", exp.inclenationPies],
     ["Kehadiran per Kegiatan Besar", exp.besarPies],
     ["Keikutsertaan per Kegiatan Keahlian", exp.keahlianPies],
     ["Sebaran Nilai Personal", exp.personalHist],
@@ -358,6 +360,15 @@ export function buildRecapWorkbook(
     pies.map((p) => [p.label, p.mean, ...p.slices.map((s) => s.pct)]),
     [3, 4, 5, 6],
   );
+  const sessionRow = (b: (typeof besar)[number]) => [
+    `${b.activityName && b.activityName !== b.name ? `${b.activityName} - ` : ""}${b.name}${b.held ? "" : " (belum terlaksana)"}`,
+    b.hadirPct,
+    b.hadir,
+    b.izin,
+    b.alpa,
+  ];
+  addChartTable(sum, "Kehadiran per Sesi Temu FTEIC", exp.temuPies, ["Sesi", "% Hadir", "Hadir", "Izin", "Alpa"], temu.map(sessionRow), [2]);
+  addChartTable(sum, "Kehadiran Inclenation", exp.inclenationPies, ["Hari", "% Hadir", "Hadir", "Izin", "Alpa"], inclenation.map(sessionRow), [2]);
   addChartTable(
     sum,
     "Kehadiran per Kegiatan Besar",

@@ -29,7 +29,8 @@ export type RecapRow = {
   attendance: Record<"INCLENATION" | "TEMU_FTEIC" | "KEGIATAN_BESAR", { attended: number; held: number; total: number }>;
   keahlianAttended: number;
   /** Kegiatan Besar session code → status (null = not held yet). */
-  besarSessions: Record<string, AttendanceStatus | null>;
+  /** Mandatory (Inclenation / Temu FTEIC / Kegiatan Besar) session id → status; null = not held yet. */
+  mandatorySessions: Record<string, AttendanceStatus | null>;
   /** Kegiatan Keahlian session code → status, only for kegiatan this maba has a row for. */
   keahlianSessions: Record<string, AttendanceStatus>;
 };
@@ -42,11 +43,15 @@ export type RecapMeta = {
   kegiatanBesarMaxAbsences: number;
   temuSessions: number;
   kegiatanBesarSessions: number;
-  kegiatanBesarList: Array<{ code: string; name: string }>;
+  /** Mandatory sessions per category, in display order, for the per-session pies. */
+  sessionLists: Record<MandatoryCategory, Array<{ id: string; code: string; name: string; activityName: string }>>;
   keahlianList: Array<{ code: string; name: string; skillCategory: string | null }>;
 };
 
 export type RecapData = { rows: RecapRow[]; meta: RecapMeta };
+
+export type MandatoryCategory = "INCLENATION" | "TEMU_FTEIC" | "KEGIATAN_BESAR";
+const MANDATORY_CATEGORIES: MandatoryCategory[] = ["INCLENATION", "TEMU_FTEIC", "KEGIATAN_BESAR"];
 
 const NO_DEPARTMENT = { code: "-", name: "Tanpa Departemen" };
 
@@ -112,7 +117,9 @@ export async function loadRecapComputation(): Promise<{ data: RecapData; compute
         KEGIATAN_BESAR: att(AttendanceCategory.KEGIATAN_BESAR),
       },
       keahlianAttended: section(AttendanceCategory.KEAHLIAN).entries.filter((e) => e.status === AttendanceStatus.HADIR).length,
-      besarSessions: Object.fromEntries(section(AttendanceCategory.KEGIATAN_BESAR).entries.map((e) => [e.sessionCode, e.status])),
+      mandatorySessions: Object.fromEntries(
+        MANDATORY_CATEGORIES.flatMap((cat) => section(cat as AttendanceCategory).entries.map((e) => [e.sessionId, e.status])),
+      ),
       keahlianSessions: Object.fromEntries(
         section(AttendanceCategory.KEAHLIAN).entries.flatMap((e) => (e.status ? [[e.sessionCode, e.status]] : [])),
       ),
@@ -122,10 +129,17 @@ export async function loadRecapComputation(): Promise<{ data: RecapData; compute
   const sessionCount = (cat: AttendanceCategory) => ctx.attendance.sessions.filter((x) => x.activity.attendanceCategory === cat).length;
   const besarOrder = ["PESRAF", "SOSCOM", "ARUS_EMAS_1", "ARUS_EMAS_2", "ARUS_EMAS_3", "COMPEX"];
   const rank = (code: string) => (besarOrder.includes(code) ? besarOrder.indexOf(code) : besarOrder.length);
-  const kegiatanBesarList = ctx.attendance.sessions
-    .filter((x) => x.activity.attendanceCategory === AttendanceCategory.KEGIATAN_BESAR)
-    .map((x) => ({ code: x.code, name: x.name }))
-    .sort((a, b) => rank(a.code) - rank(b.code) || a.code.localeCompare(b.code));
+  // Context sessions are already ordered by activity then code; Kegiatan Besar
+  // gets its real running order instead of alphabetical.
+  const sessionLists = Object.fromEntries(
+    MANDATORY_CATEGORIES.map((cat) => {
+      const list = ctx.attendance.sessions
+        .filter((x) => x.activity.attendanceCategory === cat)
+        .map((x) => ({ id: x.id, code: x.code, name: x.name, activityName: x.activity.name }));
+      if (cat === "KEGIATAN_BESAR") list.sort((a, b) => rank(a.code) - rank(b.code) || a.code.localeCompare(b.code));
+      return [cat, list];
+    }),
+  ) as RecapMeta["sessionLists"];
   const keahlianList = ctx.attendance.sessions
     .filter((x) => x.activity.attendanceCategory === AttendanceCategory.KEAHLIAN)
     .map((x) => ({ code: x.code, name: x.name, skillCategory: x.skillCategory }))
@@ -140,7 +154,7 @@ export async function loadRecapComputation(): Promise<{ data: RecapData; compute
       kegiatanBesarMaxAbsences: ctx.attendance.kegiatanBesarMaxAbsences,
       temuSessions: sessionCount(AttendanceCategory.TEMU_FTEIC),
       kegiatanBesarSessions: sessionCount(AttendanceCategory.KEGIATAN_BESAR),
-      kegiatanBesarList,
+      sessionLists,
       keahlianList,
     },
   };
@@ -161,7 +175,7 @@ export async function loadRecapData(): Promise<RecapData> {
  * cached for 10 minutes; the recap page's "Hitung ulang" button expires it
  * immediately (updateTag) after new imports.
  */
-export const getRecapData = unstable_cache(loadRecapData, ["recap-data-v3"], {
+export const getRecapData = unstable_cache(loadRecapData, ["recap-data-v4"], {
   revalidate: 600,
   tags: [RECAP_CACHE_TAG],
 });
@@ -331,6 +345,8 @@ export function recapExplanations(meta: RecapMeta) {
     predicatePies:
       "Tiap lingkaran = satu aspek; potongannya adalah persentase maba (layak diagregasi) di predikat Sangat Baik ≥{sb}, Baik ≥{b}, Cukup ≥{c}, dan Kurang. Potongan Cukup + Kurang yang besar menandakan aspek yang perlu perhatian.",
     besarPies: `Tiap lingkaran = satu Kegiatan Besar: persentase maba Hadir / Izin / Alpa. Kegiatan yang datanya belum diimpor ditandai "belum terlaksana".`,
+    temuPies: `Tiap lingkaran = satu sesi Temu FTEIC: persentase maba Hadir / Izin / Alpa. Temu FTEIC 2 (kuis) dihitung hadir bila maba memiliki nilai kuis > 0. Sesi yang belum terlaksana ditandai.`,
+    inclenationPies: `Tiap lingkaran = satu hari Inclenation: persentase maba Hadir / Izin / Alpa.`,
     keahlianPies: `Tiap lingkaran = satu Kegiatan Keahlian (opsional): persentase seluruh maba yang Hadir, Izin, Alpa, atau Tidak ikut (namanya tidak ada di data kegiatan). Maba yang hadir mendapat porsi kegiatan ${pc(s.kegiatan)} pada kategori keahlian kegiatan tersebut.`,
   };
 }
@@ -411,6 +427,8 @@ export function buildPredicatePies(rows: RecapRow[], t: PredicateThresholds): Pr
 
 export type BesarSessionStat = {
   code: string;
+  /** Activity the session belongs to (e.g. "Temu FTEIC 1"). */
+  activityName?: string;
   name: string;
   held: boolean;
   hadir: number;
@@ -419,20 +437,20 @@ export type BesarSessionStat = {
   hadirPct: number | null;
 };
 
-/** Per Kegiatan Besar session: hadir / izin / alpa among all maba in scope. */
-export function buildKegiatanBesarStats(rows: RecapRow[], meta: RecapMeta): BesarSessionStat[] {
-  return meta.kegiatanBesarList.map(({ code, name }) => {
+/** Per mandatory session (one category): hadir / izin / alpa among all maba in scope. */
+export function buildSessionStats(rows: RecapRow[], meta: RecapMeta, category: MandatoryCategory): BesarSessionStat[] {
+  return meta.sessionLists[category].map(({ id, code, name, activityName }) => {
     let hadir = 0;
     let izin = 0;
     let alpa = 0;
     for (const r of rows) {
-      const s = r.besarSessions[code];
+      const s = r.mandatorySessions[id];
       if (s === AttendanceStatus.HADIR) hadir++;
       else if (s === AttendanceStatus.IZIN) izin++;
       else if (s === AttendanceStatus.ALPA) alpa++;
     }
     const total = hadir + izin + alpa;
-    return { code, name, held: total > 0, hadir, izin, alpa, hadirPct: total > 0 ? Number(((hadir / total) * 100).toFixed(1)) : null };
+    return { code, name, activityName, held: total > 0, hadir, izin, alpa, hadirPct: total > 0 ? Number(((hadir / total) * 100).toFixed(1)) : null };
   });
 }
 
@@ -490,9 +508,11 @@ export function buildRecapView(data: RecapData, settings: RecapSettings, deptCod
   const scopeName = activeDept ? activeDept.name : "FTEIC";
   const stats = buildRecapStats(scoped);
   const pies = buildPredicatePies(scoped, settings.thresholds);
-  const besar = buildKegiatanBesarStats(scoped, meta);
+  const besar = buildSessionStats(scoped, meta, "KEGIATAN_BESAR");
+  const temu = buildSessionStats(scoped, meta, "TEMU_FTEIC");
+  const inclenation = buildSessionStats(scoped, meta, "INCLENATION");
   const keahlian = buildKeahlianStats(scoped, meta);
   const base = recapExplanations(meta);
   const explanations = { ...base, predicatePies: predicateExplanation(base.predicatePies, settings.thresholds) };
-  return { departments, activeDept, scoped, scopeName, stats, pies, besar, keahlian, explanations };
+  return { departments, activeDept, scoped, scopeName, stats, pies, besar, temu, inclenation, keahlian, explanations };
 }

@@ -120,11 +120,12 @@ export function PredicatePieGrid({ title, description, pies }: { title: string; 
   );
 }
 
-export function BesarPieGrid({ description, sessions }: { description: string; sessions: BesarSessionStat[] }) {
+/** Hadir / Izin / Alpa pie per session — used for Kegiatan Besar, Temu FTEIC and Inclenation. */
+export function SessionPieGrid({ title, description, sessions }: { title: string; description: string; sessions: BesarSessionStat[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">Kehadiran per Kegiatan Besar</CardTitle>
+        <CardTitle className="text-sm">{title}</CardTitle>
         <CardDescription className="text-xs">{description}</CardDescription>
       </CardHeader>
       <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -138,7 +139,12 @@ export function BesarPieGrid({ description, sessions }: { description: string; s
           ];
           return (
             <div key={s.code} className="space-y-2 rounded-lg border p-3">
-              <p className="text-xs font-semibold">{s.name}</p>
+              <div>
+                <p className="text-xs font-semibold">{s.name}</p>
+                {s.activityName && s.activityName !== s.name ? (
+                  <p className="text-[10px] text-muted-foreground">{s.activityName}</p>
+                ) : null}
+              </div>
               {!s.held ? (
                 <p className="py-10 text-center text-xs text-muted-foreground">Belum terlaksana / belum diimpor</p>
               ) : (
