@@ -387,8 +387,8 @@ export function buildRecapWorkbook(
   );
   addChartTable(
     sum,
-    "Statistik Nilai (maba layak diagregasi)",
-    "n = jumlah maba layak; SD = simpangan baku (makin besar = makin beragam).",
+    "Statistik Nilai (seluruh maba, layak dan tidak layak)",
+    "n = jumlah maba yang punya nilai; SD = simpangan baku (makin besar = makin beragam).",
     ["Nilai", "n", "Rata-rata", "Median", "Min", "Maks"],
     [
       ["Nilai Personal", stats.personal.n, stats.personal.mean, stats.personal.median, stats.personal.min, stats.personal.max],

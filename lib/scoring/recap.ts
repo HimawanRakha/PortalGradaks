@@ -258,36 +258,36 @@ export const COMPONENT_LABELS: Record<string, string> = {
 const ATTENDANCE_LABELS = { INCLENATION: "Inclenation", TEMU_FTEIC: "Temu FTEIC", KEGIATAN_BESAR: "Kegiatan Besar" } as const;
 
 /**
- * Score averages (and the summaries) use only maba who are layak diagregasi —
- * the agreed rule that "tidak layak" data is handed to HMD, not aggregated.
- * Histograms and counts still show everyone so the full spread is visible.
+ * Every statistic covers ALL maba in scope, layak and tidak layak alike —
+ * tidak-layak maba are still scored (they only miss the recommendation), so
+ * the recap reflects the whole cohort. Layak/tidak counts are kept separately.
  */
 export function buildRecapStats(rows: RecapRow[]): RecapStats {
-  const ok = rows.filter((r) => r.eligible);
+  const eligibleCount = rows.filter((r) => r.eligible).length;
   const pct = (num: number, den: number) => (den > 0 ? round((num / den) * 100) : null);
 
   return {
     total: rows.length,
-    eligible: ok.length,
-    ineligible: rows.length - ok.length,
+    eligible: eligibleCount,
+    ineligible: rows.length - eligibleCount,
     ineligibleTemu: rows.filter((r) => r.reasons.some((x) => x.includes("Temu FTEIC"))).length,
     ineligibleBesar: rows.filter((r) => r.reasons.some((x) => x.includes("Kegiatan Besar"))).length,
-    personal: summarize(ok.map((r) => r.personal)),
-    skill: summarize(ok.map((r) => r.skill)),
+    personal: summarize(rows.map((r) => r.personal)),
+    skill: summarize(rows.map((r) => r.skill)),
     personalHist: histogram(rows, (r) => r.personal),
     skillHist: histogram(rows, (r) => r.skill),
     components: Object.entries(COMPONENT_LABELS).map(([code, label]) => ({
       code,
       label,
-      mean: mean(ok.map((r) => r.components[code as keyof RecapRow["components"]])),
+      mean: mean(rows.map((r) => r.components[code as keyof RecapRow["components"]])),
     })),
-    subNilai: Object.entries(SUB_NILAI_LABELS).map(([code, label]) => ({ code, label: `${code} ${label}`, mean: mean(ok.map((r) => r.subNilai[code])) })),
+    subNilai: Object.entries(SUB_NILAI_LABELS).map(([code, label]) => ({ code, label: `${code} ${label}`, mean: mean(rows.map((r) => r.subNilai[code])) })),
     skillCategories: Object.entries(SKILL_LABELS).map(([code, label]) => ({
       code,
       label,
-      mean: mean(ok.map((r) => r.skillCategories[code]?.score ?? null)),
-      mentorMean: mean(ok.map((r) => r.skillCategories[code]?.mentor ?? null)),
-      participationPct: pct(ok.filter((r) => (r.skillCategories[code]?.activities ?? 0) > 0).length, ok.length),
+      mean: mean(rows.map((r) => r.skillCategories[code]?.score ?? null)),
+      mentorMean: mean(rows.map((r) => r.skillCategories[code]?.mentor ?? null)),
+      participationPct: pct(rows.filter((r) => (r.skillCategories[code]?.activities ?? 0) > 0).length, rows.length),
     })),
     attendance: (Object.keys(ATTENDANCE_LABELS) as Array<keyof typeof ATTENDANCE_LABELS>).map((code) => {
       const attended = rows.reduce((a, r) => a + r.attendance[code].attended, 0);
@@ -302,14 +302,13 @@ export function buildDepartmentStats(rows: RecapRow[]): DepartmentStat[] {
   for (const r of rows) byDept.set(r.departmentCode, [...(byDept.get(r.departmentCode) ?? []), r]);
   return [...byDept.entries()]
     .map(([code, list]) => {
-      const ok = list.filter((r) => r.eligible);
       return {
         code,
         name: list[0].departmentName,
         total: list.length,
-        eligible: ok.length,
-        personalMean: mean(ok.map((r) => r.personal)),
-        skillMean: mean(ok.map((r) => r.skill)),
+        eligible: list.filter((r) => r.eligible).length,
+        personalMean: mean(list.map((r) => r.personal)),
+        skillMean: mean(list.map((r) => r.skill)),
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -331,19 +330,19 @@ export function recapExplanations(meta: RecapMeta) {
       `Nilai Personal = ${pc(p.temuFteic)} Kehadiran Temu FTEIC + ${pc(p.kegiatanBesar)} Kehadiran Kegiatan Besar + ${pc(p.inclenation)} Kehadiran Inclenation + ${pc(p.materi)} Penilaian Materi. Porsi kehadiran sengaja dominan karena objektif; penilaian mentor bisa subjektif.`,
       `Nilai Keahlian = rata-rata 4 kategori (Manajerial, Keilmiahan, Minat Bakat, Kewirausahaan). Tiap kategori = ${pc(s.mentor)} evaluasi mentor (logbook: keaktifan, minat, potensi) + ${pc(s.kegiatan)} Kegiatan Keahlian (ikut ≥1 kegiatan di kategori itu = 100, tidak ikut = 0).`,
       `Kehadiran dihitung HADIR = 100, IZIN = 50, ALPA = 0, dirata-rata dari sesi yang sudah terlaksana. Sesi yang belum terlaksana/diimpor tidak dihitung.`,
-      `Tidak layak diagregasi: absen Temu FTEIC lebih dari ${meta.temuMaxAbsences}x (wajib hadir ${minTemu} dari ${meta.temuSessions}) ATAU absen Kegiatan Besar lebih dari ${meta.kegiatanBesarMaxAbsences}x (wajib hadir ${minBesar} dari ${meta.kegiatanBesarSessions}). Nilainya tetap dihitung, tetapi tidak masuk rata-rata/statistik dan diserahkan ke HMD untuk pendampingan lanjutan.`,
+      `Tidak layak diagregasi: absen Temu FTEIC lebih dari ${meta.temuMaxAbsences}x (wajib hadir ${minTemu} dari ${meta.temuSessions}) ATAU absen Kegiatan Besar lebih dari ${meta.kegiatanBesarMaxAbsences}x (wajib hadir ${minBesar} dari ${meta.kegiatanBesarSessions}). Nilainya tetap dihitung dan tetap masuk seluruh statistik rekap ini, tetapi raportnya tidak mendapat rekomendasi (diganti pesan peringatan) dan datanya diserahkan ke HMD untuk pendampingan lanjutan.`,
       `Temu FTEIC 2 berupa kuis: maba dianggap hadir bila memiliki nilai kuis > 0. Nilai yang belum diisi mentor dihitung 0.`,
     ],
-    personalHist: `Sebaran Nilai Personal per rentang 10 poin. Batang hijau = layak diagregasi, merah = tidak layak. Rata-rata dan median di atas hanya memakai maba yang layak.`,
+    personalHist: `Sebaran Nilai Personal per rentang 10 poin. Batang hijau = layak diagregasi, merah = tidak layak. Rata-rata dan median di atas mencakup seluruh maba (layak dan tidak layak).`,
     skillHist: `Sebaran Nilai Keahlian per rentang 10 poin, dengan pembagian layak / tidak layak yang sama.`,
     components: `Rata-rata tiap komponen penyusun Nilai Personal (skala 0–100). Komponen kehadiran yang rendah menandakan banyak maba absen; Penilaian Materi berasal dari rubrik mentor dan kuis per materi.`,
     subNilai: `Rata-rata 6 Sub-Nilai di dalam Penilaian Materi: A.1 Kebersamaan = jumlah hadir ÷ sesi wajib yang terlaksana; A.2–C.2 dari rubrik mentor/kuis tiap materi (termasuk keaktifan sesi dan nilai SOSCOM untuk C.1/C.2).`,
     skillCategories: `Rata-rata Nilai Keahlian per kategori, beserta rata-rata evaluasi mentor dan persentase maba yang ikut minimal 1 Kegiatan Keahlian di kategori tersebut.`,
     attendance: `Persentase kehadiran (HADIR ÷ sesi terlaksana) seluruh maba di tiap kelompok kegiatan wajib.`,
-    departments: `Perbandingan rata-rata Nilai Personal dan Nilai Keahlian antar departemen (hanya maba yang layak diagregasi).`,
+    departments: `Perbandingan rata-rata Nilai Personal dan Nilai Keahlian antar departemen (seluruh maba, layak dan tidak layak).`,
     // {sb}/{b}/{c} are filled from the live predikat thresholds by predicateExplanation().
     predicatePies:
-      "Tiap lingkaran = satu aspek; potongannya adalah persentase maba (layak diagregasi) di predikat Sangat Baik ≥{sb}, Baik ≥{b}, Cukup ≥{c}, dan Kurang. Potongan Cukup + Kurang yang besar menandakan aspek yang perlu perhatian.",
+      "Tiap lingkaran = satu aspek; potongannya adalah persentase seluruh maba (layak dan tidak layak) di predikat Sangat Baik ≥{sb}, Baik ≥{b}, Cukup ≥{c}, dan Kurang. Potongan Cukup + Kurang yang besar menandakan aspek yang perlu perhatian.",
     besarPies: `Tiap lingkaran = satu Kegiatan Besar: persentase maba Hadir / Izin / Alpa. Kegiatan yang datanya belum diimpor ditandai "belum terlaksana".`,
     temuPies: `Tiap lingkaran = satu sesi Temu FTEIC: persentase maba Hadir / Izin / Alpa. Temu FTEIC 2 (kuis) dihitung hadir bila maba memiliki nilai kuis > 0. Sesi yang belum terlaksana ditandai.`,
     inclenationPies: `Tiap lingkaran = satu hari Inclenation: persentase maba Hadir / Izin / Alpa.`,
@@ -405,11 +404,10 @@ function aspectValue(r: RecapRow, code: string): number | null {
   return null;
 }
 
-/** One pie per aspect: how the layak-diagregasi maba split across the 4 predikat. */
+/** One pie per aspect: how all maba in scope (layak and tidak) split across the 4 predikat. */
 export function buildPredicatePies(rows: RecapRow[], t: PredicateThresholds): PredicatePie[] {
-  const ok = rows.filter((r) => r.eligible);
   return RECAP_ASPECTS.map((a) => {
-    const values = ok.map((r) => aspectValue(r, a.code)).filter((v): v is number => v !== null);
+    const values = rows.map((r) => aspectValue(r, a.code)).filter((v): v is number => v !== null);
     const counts = Object.fromEntries(PREDICATES.map((p) => [p, 0])) as Record<Predicate, number>;
     for (const v of values) counts[predicateOf(v, t)]++;
     const pct = (c: number) => (values.length > 0 ? Number(((c / values.length) * 100).toFixed(1)) : 0);
