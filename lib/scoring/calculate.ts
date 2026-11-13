@@ -9,6 +9,7 @@ import {
   DEFAULT_KEGIATAN_BESAR_ABSENCE_THRESHOLD,
   DEFAULT_PERSONAL_COMPONENT_WEIGHTS,
   DEFAULT_SKILL_COMPONENT_WEIGHTS,
+  DEFAULT_DATA_INSUFFICIENT_MESSAGE,
 } from "./setting-keys";
 import {
   buildAttendanceSections,
@@ -74,7 +75,12 @@ export type SkillCategory = {
   activities: string[];
 };
 
-export type Eligibility = { eligible: boolean; reasons: string[] };
+/**
+ * reasons = the exact absence counts (for admins: recap, Excel, finalization
+ * breakdown). message = the neutral, Settings-defined text shown to the maba
+ * instead, so their raport never lists "absen Nx (maksimal Mx)".
+ */
+export type Eligibility = { eligible: boolean; reasons: string[]; message: string };
 
 export type ComputedScores = {
   personal: BucketResult & { groups: NilaiGroup[]; components: PersonalComponent[]; materiScore: number | null };
@@ -160,6 +166,7 @@ const SETTING_KEYS_USED = [
   SETTING_KEYS.kegiatanBesarAbsenceThreshold,
   SETTING_KEYS.personalComponentWeights,
   SETTING_KEYS.skillComponentWeights,
+  SETTING_KEYS.dataInsufficientMessage,
 ];
 
 type ScoringParam = {
@@ -179,6 +186,7 @@ export type ScoringContext = {
   participationMapping: Record<string, string[]>;
   personalWeights: typeof DEFAULT_PERSONAL_COMPONENT_WEIGHTS;
   skillWeights: typeof DEFAULT_SKILL_COMPONENT_WEIGHTS;
+  dataInsufficientMessage: string;
   attendance: AttendanceContext;
 };
 
@@ -232,6 +240,10 @@ export async function loadScoringContext(): Promise<ScoringContext> {
       (setting(SETTING_KEYS.participationMapping) as Record<string, string[]> | undefined) ?? DEFAULT_PARTICIPATION_MAPPING,
     personalWeights: readWeights(setting(SETTING_KEYS.personalComponentWeights), DEFAULT_PERSONAL_COMPONENT_WEIGHTS),
     skillWeights: readWeights(setting(SETTING_KEYS.skillComponentWeights), DEFAULT_SKILL_COMPONENT_WEIGHTS),
+    dataInsufficientMessage: (() => {
+      const v = setting(SETTING_KEYS.dataInsufficientMessage);
+      return typeof v === "string" && v.trim() ? v : DEFAULT_DATA_INSUFFICIENT_MESSAGE;
+    })(),
     attendance: await loadAttendanceContext({
       statusScores,
       temuMaxAbsences: readNumberSetting(setting(SETTING_KEYS.temuAbsenceThreshold), DEFAULT_TEMU_ABSENCE_THRESHOLD),
@@ -503,7 +515,7 @@ export function computeFromInputs(ctx: ScoringContext, input: StudentScoringInpu
       categories,
     },
     attendance,
-    eligibility: { eligible: reasons.length === 0, reasons },
+    eligibility: { eligible: reasons.length === 0, reasons, message: ctx.dataInsufficientMessage },
     computedAt: new Date().toISOString(),
   };
 }

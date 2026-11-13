@@ -97,7 +97,7 @@ export function RaportPdf({ student, computed, final, thankYouMessage, threshold
   let statusColor: string;
   if (!final && !computed.eligibility.eligible) {
     statusTitle = "Status: Belum Difinalisasi - Terindikasi Tidak Layak Diagregasi";
-    statusBody = `${pdfText(computed.eligibility.reasons.join("; "))}. Bila hingga finalisasi tetap demikian, data Anda tidak masuk pengolahan dan diserahkan ke HMD untuk pendampingan lebih lanjut.`;
+    statusBody = pdfText(computed.eligibility.message);
     statusColor = "#B45309";
   } else if (!final) {
     statusTitle = "Status: Belum Difinalisasi (Nilai Sementara)";

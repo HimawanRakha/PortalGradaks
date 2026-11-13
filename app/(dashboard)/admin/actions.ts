@@ -584,7 +584,9 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
 
       if (dataInsufficient) {
         recommendation = "Tidak Dapat Diagregasi";
-        description = `${dataInsufficientMessage}\n\nAlasan: ${computed.eligibility.reasons.join("; ")}.`;
+        // Maba-facing text only; the exact absence counts stay in the
+        // snapshot breakdown (computed.eligibility.reasons) for PSDM.
+        description = dataInsufficientMessage;
         dataInsufficientCount++;
       } else {
         const evaluated = evaluateRecommendation(computed, activeRules);

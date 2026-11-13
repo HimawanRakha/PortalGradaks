@@ -88,7 +88,7 @@ export function StudentRaportView({ student, computed }: { student: StudentForRa
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                 <div>
                   <p className="font-semibold">Tidak layak diagregasi</p>
-                  <p>{computed.eligibility.reasons.join("; ")}. Data akan diserahkan ke HMD untuk pendampingan lebih lanjut.</p>
+                  <p>{computed.eligibility.message}</p>
                 </div>
               </div>
             ) : null}
@@ -315,15 +315,6 @@ function AttendanceSectionView({ section }: { section: AttendanceSection }) {
         </div>
       )}
 
-      {!section.eligible ? (
-        <div className="flex gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-2.5 text-xs text-destructive">
-          <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          <p>
-            <span className="font-semibold">Tidak layak diagregasi</span> — absen {section.label} {section.absences}x, melebihi
-            batas {section.maxAbsences}x.
-          </p>
-        </div>
-      ) : null}
     </div>
   );
 }
