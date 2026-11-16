@@ -22,8 +22,11 @@ export type AttendanceSection = {
   totalSessions: number;
   /** Sessions with any data cohort-wide — only these count toward score/gate. */
   heldCount: number;
+  /** HADIR among held sessions. */
   attendedCount: number;
-  /** IZIN + ALPA among held sessions. */
+  /** IZIN among held sessions — still shown and scored as IZIN (50), but counts as present for the gate. */
+  izinCount: number;
+  /** ALPA among held sessions — the only status that counts against the "tidak layak diagregasi" limit. */
   absences: number;
   /** Null = this section has no "Tidak Layak Diagregasi" gate. */
   maxAbsences: number | null;
@@ -183,7 +186,10 @@ export function buildAttendanceSections(
 
     const held = entries.filter((e) => e.status !== null);
     const attendedCount = held.filter((e) => e.status === AttendanceStatus.HADIR).length;
-    const absences = held.length - attendedCount;
+    const izinCount = held.filter((e) => e.status === AttendanceStatus.IZIN).length;
+    // Fairness rule: an excused absence (IZIN) is not held against the maba
+    // for aggregation eligibility; only ALPA counts toward maxAbsences.
+    const absences = held.length - attendedCount - izinCount;
     const maxAbsences =
       category === AttendanceCategory.TEMU_FTEIC
         ? opts.temuMaxAbsences
@@ -202,6 +208,7 @@ export function buildAttendanceSections(
       totalSessions: entries.length,
       heldCount: held.length,
       attendedCount,
+      izinCount,
       absences,
       maxAbsences,
       minAttendance: maxAbsences === null ? null : Math.max(0, entries.length - maxAbsences),

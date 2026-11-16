@@ -402,7 +402,7 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
                 onChange={(e) => setTemuAbsenceThreshold(e.target.value)}
                 className="h-8"
               />
-              <span className="text-[10px] text-muted-foreground">Jumlah absen (izin/alpa) di seluruh sesi Temu FTEIC sebelum gate aktif (default: 2). Temu FTEIC 2 (kuis) dihitung hadir bila nilainya ada &gt; 0.</span>
+              <span className="text-[10px] text-muted-foreground">Jumlah ALPA di seluruh sesi Temu FTEIC sebelum gate aktif (default: 2); IZIN dihitung hadir untuk gate ini (nilainya tetap 50). Temu FTEIC 2 (kuis) dihitung hadir bila nilainya ada &gt; 0.</span>
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="besar-absence-thresh">Ambang Absen Kegiatan Besar (lebih dari)</Label>
@@ -415,7 +415,7 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
                 onChange={(e) => setKegiatanBesarAbsenceThreshold(e.target.value)}
                 className="h-8"
               />
-              <span className="text-[10px] text-muted-foreground">Jumlah absen (izin/alpa) di Pesraf/Soscom/Arus Emas 1-3/Compex sebelum gate aktif (default: 2 → wajib hadir 4 dari 6).</span>
+              <span className="text-[10px] text-muted-foreground">Jumlah ALPA di Pesraf/Soscom/Arus Emas 1-3/Compex sebelum gate aktif (default: 2 → wajib hadir 4 dari 6); IZIN dihitung hadir untuk gate ini (nilainya tetap 50).</span>
             </div>
             <div className="grid gap-1.5 md:col-span-2">
               <Label htmlFor="data-insufficient-msg">Pesan Peringatan (tampil di raport maba)</Label>

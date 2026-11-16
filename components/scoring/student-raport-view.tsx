@@ -238,8 +238,11 @@ function AttendanceSectionView({ section }: { section: AttendanceSection }) {
   const isOptional = section.category === "KEAHLIAN";
   const pending = section.totalSessions - section.heldCount;
   const target = section.minAttendance ?? section.totalSessions;
-  const remaining = Math.max(0, target - section.attendedCount);
-  const progressPct = target > 0 ? Math.min(100, (section.attendedCount / target) * 100) : 0;
+  // Toward the minimum, IZIN counts as present (only ALPA is an absence for
+  // aggregation); its score stays 50 and it still shows as IZIN per session.
+  const present = section.maxAbsences !== null ? section.attendedCount + section.izinCount : section.attendedCount;
+  const remaining = Math.max(0, target - present);
+  const progressPct = target > 0 ? Math.min(100, (present / target) * 100) : 0;
 
   return (
     <div className="space-y-2">
@@ -275,9 +278,9 @@ function AttendanceSectionView({ section }: { section: AttendanceSection }) {
             />
           </div>
           <p className="text-[10px] text-muted-foreground">
-            Hadir {section.attendedCount} dari {target}
+            Hadir {present} dari {target}
             {section.maxAbsences !== null
-              ? ` minimal (${section.totalSessions} kegiatan, boleh absen maks. ${section.maxAbsences}x) · absen ${section.absences}x`
+              ? ` minimal${section.izinCount > 0 ? ` (termasuk ${section.izinCount} izin)` : ""} · ${section.totalSessions} kegiatan, boleh absen (alpa) maks. ${section.maxAbsences}x · alpa ${section.absences}x`
               : " sesi"}
             {pending > 0 ? ` · ${pending} belum terlaksana/diimpor` : ""}
           </p>

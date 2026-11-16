@@ -486,7 +486,7 @@ export function computeFromInputs(ctx: ScoringContext, input: StudentScoringInpu
 
   const reasons = attendance
     .filter((s) => !s.eligible)
-    .map((s) => `Absen ${s.label} ${s.absences}x (maksimal ${s.maxAbsences}x)`);
+    .map((s) => `Alpa ${s.label} ${s.absences}x (maksimal ${s.maxAbsences}x)`);
 
   return {
     personal: {
