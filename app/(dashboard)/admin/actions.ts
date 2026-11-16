@@ -19,7 +19,7 @@ import {
 } from "@/app/generated/prisma/enums";
 import { Prisma } from "@/app/generated/prisma/client";
 import { computeScoresForStudents } from "@/lib/scoring/calculate";
-import { SETTING_KEYS, DEFAULT_DATA_INSUFFICIENT_MESSAGE } from "@/lib/scoring/setting-keys";
+import { SETTING_KEYS, DEFAULT_DATA_INSUFFICIENT_MESSAGE, MANAJERIAL_ASSESSMENT } from "@/lib/scoring/setting-keys";
 import { upsertAttendance, upsertScore } from "@/lib/scoring/upsert";
 import { getActiveRecommendationRulesForEvaluation, evaluateRecommendation } from "@/lib/scoring/recommendation";
 
@@ -343,6 +343,42 @@ async function importKeahlianRow(dataMap: Record<string, string>, studentId: str
   };
 }
 
+/**
+ * Penilaian Manajerial — one 0-100 score per maba that becomes the whole
+ * Manajerial kegiatan portion (see calculate.ts). Upserted into its own
+ * import-only parameter, so a corrected re-upload overwrites the same value
+ * (previous value kept in previousValueSnapshot) instead of duplicating.
+ */
+async function importManajerialRow(dataMap: Record<string, string>, studentId: string, actorUserId: string, importId: string): Promise<RowOutcome> {
+  const valueRaw = (dataMap["nilai"] ?? dataMap["value"] ?? "").trim().replace(",", ".");
+  if (valueRaw === "") return { action: ImportRowAction.FAILED, errorReason: "Kolom nilai wajib diisi." };
+  const value = Number(valueRaw);
+  if (!Number.isInteger(value) || value < 0 || value > MANAJERIAL_ASSESSMENT.maxValue) {
+    return { action: ImportRowAction.FAILED, errorReason: `Nilai "${valueRaw}" harus bilangan bulat 0-${MANAJERIAL_ASSESSMENT.maxValue}.` };
+  }
+
+  const parameter = await prisma.parameter.findFirst({
+    where: {
+      subCode: MANAJERIAL_ASSESSMENT.subCode,
+      material: { code: MANAJERIAL_ASSESSMENT.materialCode, activity: { code: MANAJERIAL_ASSESSMENT.activityCode } },
+    },
+  });
+  const session = await prisma.activitySession.findFirst({ where: { activity: { code: MANAJERIAL_ASSESSMENT.activityCode }, code: "UMUM" } });
+  if (!parameter || !session) {
+    return { action: ImportRowAction.FAILED, errorReason: "Parameter Penilaian Manajerial belum disiapkan di Master Data." };
+  }
+
+  const existing = await prisma.score.findUnique({
+    where: { studentId_parameterId_sessionId: { studentId, parameterId: parameter.id, sessionId: session.id } },
+  });
+  await upsertScore({ studentId, parameterId: parameter.id, sessionId: session.id, value, actorUserId, source: "IMPORT", importId });
+  return {
+    action: existing ? ImportRowAction.UPDATED : ImportRowAction.CREATED,
+    matchedStudentId: studentId,
+    previousValueSnapshot: existing ? { value: existing.value } : undefined,
+  };
+}
+
 async function importPostTestRow(dataMap: Record<string, string>, studentId: string, actorUserId: string, importId: string): Promise<RowOutcome> {
   const activityCode = dataMap["activity_code"]?.trim();
   const materialCode = dataMap["material_code"]?.trim();
@@ -441,6 +477,8 @@ export async function importCsvAction(type: ImportType, fileName: string, csvCon
               outcome = await importProkerRow(dataMap, student.id, user.id, batchImport.id);
             } else if (type === ImportType.KEAHLIAN) {
               outcome = await importKeahlianRow(dataMap, student.id, user.id, batchImport.id);
+            } else if (type === ImportType.PENILAIAN_MANAJERIAL) {
+              outcome = await importManajerialRow(dataMap, student.id, user.id, batchImport.id);
             } else if (type === ImportType.POST_TEST) {
               outcome = await importPostTestRow(dataMap, student.id, user.id, batchImport.id);
             } else {

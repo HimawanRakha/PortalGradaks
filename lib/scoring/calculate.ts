@@ -10,6 +10,7 @@ import {
   DEFAULT_PERSONAL_COMPONENT_WEIGHTS,
   DEFAULT_SKILL_COMPONENT_WEIGHTS,
   DEFAULT_DATA_INSUFFICIENT_MESSAGE,
+  MANAJERIAL_ASSESSMENT,
 } from "./setting-keys";
 import {
   buildAttendanceSections,
@@ -70,8 +71,15 @@ export type SkillCategory = {
   label: string;
   score: number | null;
   mentorScore: number | null;
-  /** Kegiatan Keahlian part — null when no kegiatan in this category was attended. */
+  /**
+   * The kegiatan portion (0-100): attendance of Kegiatan Keahlian for most
+   * categories; for Manajerial it is the imported Penilaian Manajerial.
+   * Null = not held yet (category scored from the mentor evaluation only).
+   */
   activityScore: number | null;
+  activitySource: "KEHADIRAN" | "PENILAIAN";
+  /** Manajerial only: this maba's raw Penilaian Manajerial (null = not in the import). */
+  assessmentRaw: number | null;
   activities: string[];
 };
 
@@ -187,6 +195,8 @@ export type ScoringContext = {
   personalWeights: typeof DEFAULT_PERSONAL_COMPONENT_WEIGHTS;
   skillWeights: typeof DEFAULT_SKILL_COMPONENT_WEIGHTS;
   dataInsufficientMessage: string;
+  /** The Penilaian Manajerial parameter, and whether any maba has a value yet. */
+  manajerialAssessment: { parameterId: string; held: boolean } | null;
   attendance: AttendanceContext;
 };
 
@@ -230,6 +240,17 @@ export async function loadScoringContext(): Promise<ScoringContext> {
     prisma.score.groupBy({ by: ["parameterId"], where: { parameterId: { in: paramIds }, value: { not: null } } }),
     prisma.groupScore.groupBy({ by: ["parameterId"], where: { parameterId: { in: paramIds }, value: { not: null } } }),
   ]);
+  const manajerialParam = await prisma.parameter.findFirst({
+    where: {
+      subCode: MANAJERIAL_ASSESSMENT.subCode,
+      material: { code: MANAJERIAL_ASSESSMENT.materialCode, activity: { code: MANAJERIAL_ASSESSMENT.activityCode } },
+    },
+    select: { id: true },
+  });
+  const manajerialHeld = manajerialParam
+    ? !!(await prisma.score.findFirst({ where: { parameterId: manajerialParam.id, value: { not: null } }, select: { id: true } }))
+    : false;
+
   const setting = (key: string) => settingRows.find((s) => s.key === key)?.value;
   const statusScores = (setting(SETTING_KEYS.attendanceStatusScores) as Record<string, number> | undefined) ?? DEFAULT_ATTENDANCE_STATUS_SCORES;
 
@@ -240,6 +261,7 @@ export async function loadScoringContext(): Promise<ScoringContext> {
       (setting(SETTING_KEYS.participationMapping) as Record<string, string[]> | undefined) ?? DEFAULT_PARTICIPATION_MAPPING,
     personalWeights: readWeights(setting(SETTING_KEYS.personalComponentWeights), DEFAULT_PERSONAL_COMPONENT_WEIGHTS),
     skillWeights: readWeights(setting(SETTING_KEYS.skillComponentWeights), DEFAULT_SKILL_COMPONENT_WEIGHTS),
+    manajerialAssessment: manajerialParam ? { parameterId: manajerialParam.id, held: manajerialHeld } : null,
     dataInsufficientMessage: (() => {
       const v = setting(SETTING_KEYS.dataInsufficientMessage);
       return typeof v === "string" && v.trim() ? v : DEFAULT_DATA_INSUFFICIENT_MESSAGE;
@@ -464,17 +486,31 @@ export function computeFromInputs(ctx: ScoringContext, input: StudentScoringInpu
 
   // ---- Nilai Keahlian: mentor evaluation (+ optional Kegiatan Keahlian) per category ----
   const keahlian = section(AttendanceCategory.KEAHLIAN);
+  const assessmentValue = ctx.manajerialAssessment
+    ? input.scores.find((s) => s.parameterId === ctx.manajerialAssessment!.parameterId)?.value
+    : null;
   const categories: SkillCategory[] = SKILL_CATEGORY_LABELS.map(({ code, label }) => {
     const mentorScore = avg(skillMentorScores[code]);
     const attended = keahlian.entries.filter((e) => e.skillCategory === code && e.status === AttendanceStatus.HADIR);
     // Joined ≥1 kegiatan in this category = full kegiatan half, none = 0 —
     // but only once this category has any kegiatan at all (null = not held yet).
-    const activityScore = attended.length > 0 ? 100 : keahlian.heldSkillCategories.includes(code) ? 0 : null;
+    const attendanceScore = attended.length > 0 ? 100 : keahlian.heldSkillCategories.includes(code) ? 0 : null;
+    // Manajerial: the kegiatan portion is the imported Penilaian Manajerial
+    // only (attendance not used); missing = 0 once anyone has been assessed.
+    const usesAssessment = code === "M" && !!ctx.manajerialAssessment;
+    const assessmentRaw = usesAssessment ? (assessmentValue ?? null) : null;
+    const activityScore = usesAssessment
+      ? ctx.manajerialAssessment!.held
+        ? normalize(assessmentRaw ?? 0, MANAJERIAL_ASSESSMENT.maxValue)
+        : null
+      : attendanceScore;
     return {
       code,
       label,
       mentorScore,
       activityScore,
+      activitySource: usesAssessment ? "PENILAIAN" : "KEHADIRAN",
+      assessmentRaw,
       activities: attended.map((e) => e.sessionName),
       score: blend([
         { score: mentorScore, weight: skillWeights.mentor },

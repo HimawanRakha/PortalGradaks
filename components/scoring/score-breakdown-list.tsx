@@ -164,11 +164,15 @@ export function ScoreBreakdownList({ computed }: { computed: ComputedScores }) {
               key={cat.code}
               title={cat.label}
               subtitle={
-                cat.activities.length > 0
-                  ? `${cat.activities.length} kegiatan keahlian diikuti`
-                  : cat.activityScore === 0
-                    ? "belum ikut kegiatan keahlian"
-                    : "evaluasi mentor"
+                cat.activitySource === "PENILAIAN"
+                  ? cat.activityScore === null
+                    ? "evaluasi mentor"
+                    : `penilaian manajerial ${cat.assessmentRaw ?? 0}/100`
+                  : cat.activities.length > 0
+                    ? `${cat.activities.length} kegiatan keahlian diikuti`
+                    : cat.activityScore === 0
+                      ? "belum ikut kegiatan keahlian"
+                      : "evaluasi mentor"
               }
               score={cat.score}
             >
@@ -178,10 +182,18 @@ export function ScoreBreakdownList({ computed }: { computed: ComputedScores }) {
               </div>
               <ItemList items={skill.items.filter((item) => item.targets.includes(cat.code))} />
               <div className="flex items-center justify-between border-t pt-2 text-[11px] font-medium">
-                <span>Kegiatan keahlian</span>
+                <span>{cat.activitySource === "PENILAIAN" ? "Penilaian Manajerial" : "Kegiatan keahlian"}</span>
                 <span className="tabular-nums">{fmt(cat.activityScore)}</span>
               </div>
-              {cat.activities.length > 0 ? (
+              {cat.activitySource === "PENILAIAN" ? (
+                <p className="text-[10px] text-muted-foreground">
+                  {cat.activityScore === null
+                    ? "Penilaian Manajerial belum diimpor — sementara nilai hanya dari evaluasi mentor."
+                    : cat.assessmentRaw === null
+                      ? "Tidak tercantum di data Penilaian Manajerial — porsi ini bernilai 0."
+                      : `Nilai Penilaian Manajerial ${cat.assessmentRaw}/100 (impor PSDM).`}
+                </p>
+              ) : cat.activities.length > 0 ? (
                 <ul className="list-disc pl-4 text-[11px]">
                   {cat.activities.map((a) => (
                     <li key={a}>{a}</li>

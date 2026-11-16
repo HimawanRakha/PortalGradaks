@@ -112,3 +112,16 @@ export const DEFAULT_RAPORT_THANK_YOU_MESSAGE =
   "pengembangan Anda, mulai dari kehadiran, keaktifan, hingga penilaian materi, sebagai bahan refleksi untuk terus " +
   "bertumbuh. Seluruh data pengembangan Anda juga diteruskan kepada Himpunan Mahasiswa Departemen (HMD) sebagai bekal " +
   "pendampingan selanjutnya. Selamat berproses dan terus berkontribusi untuk FTEIC!";
+
+/**
+ * Where the imported Penilaian Manajerial (0-100 per maba) is stored: one
+ * import-only parameter under the Kegiatan Keahlian activity. It has no
+ * personal/skill weight on purpose, so it never enters the mentor buckets —
+ * calculate.ts reads it directly as the Manajerial kegiatan portion.
+ */
+export const MANAJERIAL_ASSESSMENT = {
+  activityCode: "KEAHLIAN",
+  materialCode: "PENILAIAN_MANAJERIAL",
+  subCode: "PENILAIAN",
+  maxValue: 100,
+} as const;

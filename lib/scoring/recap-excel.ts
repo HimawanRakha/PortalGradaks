@@ -275,8 +275,32 @@ function addRawLogSheet(workbook: ExcelJS.Workbook, rows: RecapRow[], computedBy
           note: ORIGIN_LABELS[item.origin],
         });
       }
+      if (cat.activitySource === "PENILAIAN") {
+        add({
+          part: "Nilai Keahlian",
+          group: cat.label,
+          item: "Penilaian Manajerial",
+          source: "Impor PSDM",
+          raw: cat.activityScore === null ? "-" : (cat.assessmentRaw ?? 0),
+          max: 100,
+          norm: n(cat.activityScore),
+          note:
+            cat.activityScore === null
+              ? "belum diimpor"
+              : cat.assessmentRaw === null
+                ? "tidak tercantum di impor (= 0)"
+                : "porsi kegiatan Manajerial",
+        });
+      }
       for (const a of cat.activities) {
-        add({ part: "Nilai Keahlian", group: cat.label, item: `Kegiatan keahlian: ${a}`, raw: "Hadir", norm: 100, note: "Kegiatan Keahlian" });
+        add({
+          part: "Nilai Keahlian",
+          group: cat.label,
+          item: `Kegiatan keahlian: ${a}`,
+          raw: "Hadir",
+          norm: 100,
+          note: cat.activitySource === "PENILAIAN" ? "Kegiatan Keahlian (tidak dipakai; porsi Manajerial dari penilaian)" : "Kegiatan Keahlian",
+        });
       }
     }
     ws.addRow({});

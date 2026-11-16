@@ -60,6 +60,12 @@ const SCHEMAS: Record<ImportType, { title: string; cols: string[]; desc: string;
     desc: "Kehadiran wajib maba di Kegiatan Besar: PESRAF, SOSCOM, ARUS_EMAS, COMPEX. Khusus ARUS_EMAS isi arus_ke (1/2/3) — impor ulang dengan arus_ke yang sama memperbarui data arus tersebut. Nilai sub SOSCOM (Kreativitas & Kepekaan Sosial, skala 0-10) diimpor lewat jenis \"Nilai Post-test\" dengan activity_code PROKER, material_code SOSCOM, parameter_subcode C.1_SOSCOM / C.2_SOSCOM.",
     sample: "nrp,session_code,status,arus_ke\n2512345678,PESRAF,HADIR,\n2598765432,COMPEX,ALPA,\n2512345678,ARUS_EMAS,HADIR,2",
   },
+  [ImportType.PENILAIAN_MANAJERIAL]: {
+    title: "Penilaian Manajerial",
+    cols: ["nrp", "nilai"],
+    desc: "Nilai penilaian Manajerial per maba (bilangan bulat 0-100). Nilai ini menjadi seluruh porsi kegiatan 20% kategori Manajerial di Nilai Keahlian; kehadiran kegiatan Manajerial tidak dipakai untuk porsi itu. Maba yang tidak tercantum mendapat 0. Impor ulang NRP yang sama akan memperbarui nilainya.",
+    sample: "nrp,nilai\n2512345678,85\n2598765432,70",
+  },
   [ImportType.KEAHLIAN]: {
     title: "Presensi Kegiatan Keahlian",
     cols: ["nrp", "kode_kegiatan", "nama_kegiatan", "kategori", "status"],
@@ -78,6 +84,7 @@ const IMPORT_TYPE_LABELS: Record<ImportType, string> = {
   [ImportType.POST_TEST]: "Nilai Post-test",
   [ImportType.PROKER]: "Kehadiran Kegiatan Besar",
   [ImportType.KEAHLIAN]: "Kehadiran Kegiatan Keahlian",
+  [ImportType.PENILAIAN_MANAJERIAL]: "Penilaian Manajerial (nilai 0-100)",
 };
 
 export function ImportUploader() {

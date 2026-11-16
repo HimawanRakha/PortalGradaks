@@ -85,6 +85,7 @@ enum ImportType {
   STUDENTS
   ACCOUNTS
   KEAHLIAN // kehadiran Kegiatan Keahlian (opsional, per kategori Nilai Keahlian)
+  PENILAIAN_MANAJERIAL // nilai 0-100 per maba = porsi kegiatan kategori Manajerial
 }
 
 /// Which attendance section of the raport an activity's sessions feed —
