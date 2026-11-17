@@ -26,6 +26,7 @@ import {
   DEFAULT_SKILL_COMPONENT_WEIGHTS,
   DEFAULT_PREDICATE_THRESHOLDS,
   DEFAULT_RAPORT_THANK_YOU_MESSAGE,
+  DEFAULT_RAPORT_PUBLIC_CHECK_ENABLED,
 } from "@/lib/scoring/setting-keys";
 
 type SettingData = {
@@ -80,6 +81,13 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
 
   const [calibrationThreshold, setCalibrationThreshold] = useState(String(getSettingValue(SETTING_KEYS.calibrationThreshold, 0.6)));
   const [damenEnabled, setDamenEnabled] = useState(!!getSettingValue(SETTING_KEYS.damenEnabled, false));
+  const [ipfFailedNrps, setIpfFailedNrps] = useState(() => {
+    const v = getSettingValue(SETTING_KEYS.ipfFailedNrps, []);
+    return Array.isArray(v) ? v.join("\n") : String(v ?? "");
+  });
+  const [raportPublicCheckEnabled, setRaportPublicCheckEnabled] = useState(
+    getSettingValue(SETTING_KEYS.raportPublicCheckEnabled, DEFAULT_RAPORT_PUBLIC_CHECK_ENABLED) === true,
+  );
   const [temuAbsenceThreshold, setTemuAbsenceThreshold] = useState(
     String(getSettingValue(SETTING_KEYS.temuAbsenceThreshold, DEFAULT_TEMU_ABSENCE_THRESHOLD)),
   );
@@ -146,6 +154,8 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
       const settings = {
         [SETTING_KEYS.calibrationThreshold]: Number(calibrationThreshold),
         [SETTING_KEYS.damenEnabled]: damenEnabled,
+        [SETTING_KEYS.raportPublicCheckEnabled]: raportPublicCheckEnabled,
+        [SETTING_KEYS.ipfFailedNrps]: ipfFailedNrps.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean),
         [SETTING_KEYS.temuAbsenceThreshold]: Number(temuAbsenceThreshold),
         [SETTING_KEYS.kegiatanBesarAbsenceThreshold]: Number(kegiatanBesarAbsenceThreshold),
         [SETTING_KEYS.dataInsufficientMessage]: dataInsufficientMessage,
@@ -373,6 +383,32 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
               </div>
               <span className="text-[10px] text-muted-foreground">
                 Jika aktif, pemeriksaan kelengkapan harus disetujui Damen terlebih dahulu sebelum PSDM dapat melakukan verifikasi akhir.
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2 justify-center items-start border rounded-lg p-3 bg-muted/20">
+              <div className="flex items-center justify-between w-full">
+                <Label htmlFor="cek-raport-toggle" className="font-semibold cursor-pointer">Halaman Cek Raport Aktif</Label>
+                <Switch id="cek-raport-toggle" checked={raportPublicCheckEnabled} onCheckedChange={setRaportPublicCheckEnabled} />
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                Jika nonaktif, halaman publik Cek Raport dan unduhan PDF raport ditutup sementara untuk seluruh maba.
+              </span>
+            </div>
+
+            <div className="grid gap-1.5 md:col-span-2">
+              <Label htmlFor="ipf-failed">NRP Maba Tidak Lulus IPF (Inclenation)</Label>
+              <Textarea
+                id="ipf-failed"
+                rows={4}
+                value={ipfFailedNrps}
+                onChange={(e) => setIpfFailedNrps(e.target.value)}
+                placeholder="Satu NRP per baris"
+                className="font-mono text-[11px]"
+              />
+              <span className="text-[10px] text-muted-foreground">
+                Maba dengan NRP di daftar ini mendapat keterangan merah &ldquo;belum lulus IPF&rdquo; pada PDF raport; selain itu keterangan hijau
+                &ldquo;lulus IPF&rdquo;. Tersimpan {ipfFailedNrps.split(/[\s,;]+/).filter(Boolean).length} NRP.
               </span>
             </div>
           </CardContent>

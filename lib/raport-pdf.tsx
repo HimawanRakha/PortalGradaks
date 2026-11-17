@@ -2,6 +2,8 @@ import "server-only";
 import { Document, Font, Image, Page, StyleSheet, Text, View, type Styles } from "@react-pdf/renderer";
 import type { ComputedScores } from "@/lib/scoring/calculate";
 import { predicateOf, type PredicateThresholds } from "@/lib/scoring/recap";
+import type { AspectRecommendations } from "@/lib/scoring/aspect-recommendations";
+import { IPF_FAILED_MESSAGE, IPF_PASSED_MESSAGE, type IpfStatus } from "@/lib/scoring/ipf";
 
 export type RaportPdfProps = {
   student: { name: string; nrp: string; department: string; unit: string; region: string };
@@ -9,6 +11,9 @@ export type RaportPdfProps = {
   /** null = not finalized yet: values are a running estimate. */
   final: { recommendation: string | null; description: string | null; dataInsufficient: boolean; finalizedAt: Date } | null;
   thankYouMessage: string;
+  /** Per-aspect advice; null for a maba who is not aggregated (they keep the fixed data-insufficient text only). */
+  aspects: AspectRecommendations | null;
+  ipf: IpfStatus;
   thresholds: PredicateThresholds;
   logo: Buffer | null;
   generatedAt: Date;
@@ -71,6 +76,11 @@ const s = StyleSheet.create({
   status: { marginTop: 12, borderWidth: 1.2, borderRadius: 5, padding: 9 },
   statusTitle: { fontSize: 11, fontFamily: "Helvetica-Bold", marginBottom: 3 },
   closing: { marginTop: 12 },
+  recoTitle: { fontSize: 9.5, fontFamily: "Helvetica-Bold", marginTop: 6, marginBottom: 2 },
+  recoItem: { flexDirection: "row", marginBottom: 2 },
+  recoBullet: { width: 10 },
+  recoText: { flex: 1 },
+  recoLabel: { fontFamily: "Helvetica-Bold" },
   sign: { marginTop: 16, alignItems: "flex-end" },
   footer: { position: "absolute", bottom: 18, left: 44, right: 44, fontSize: 7, color: C.muted, textAlign: "center", lineHeight: 1.3 },
 });
@@ -87,7 +97,25 @@ function Row({ cells, header, last }: { cells: Array<{ text: string; style: Styl
   );
 }
 
-export function RaportPdf({ student, computed, final, thankYouMessage, thresholds, logo, generatedAt }: RaportPdfProps) {
+function AdviceList({ title, items, color }: { title: string; items: AspectRecommendations["improve"]; color: string }) {
+  if (items.length === 0) return null;
+  return (
+    <View wrap={false}>
+      <Text style={[s.recoTitle, { color }]}>{title}</Text>
+      {items.map((a) => (
+        <View key={a.code} style={s.recoItem}>
+          <Text style={s.recoBullet}>-</Text>
+          <Text style={s.recoText}>
+            <Text style={s.recoLabel}>{pdfText(`${a.label} (${fmt(a.score)}): `)}</Text>
+            {pdfText(a.text)}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export function RaportPdf({ student, computed, final, thankYouMessage, aspects, ipf, thresholds, logo, generatedAt }: RaportPdfProps) {
   const pred = (v: number | null) => (v === null ? "" : predicateOf(v, thresholds));
   const subNilai = computed.personal.groups.flatMap((g) => g.subNilai.map((x) => ({ ...x, label: x.label.replace(/\s*\(.*\)$/, "") })));
   const sections = computed.attendance;
@@ -234,7 +262,20 @@ export function RaportPdf({ student, computed, final, thankYouMessage, threshold
           {statusBody ? <Text>{clip(statusBody, 600)}</Text> : null}
         </View>
 
-        <Text style={s.closing}>{clip(pdfText(thankYouMessage), 700)}</Text>
+        {aspects && (aspects.improve.length > 0 || aspects.keep.length > 0) ? (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>Rekomendasi Pengembangan</Text>
+            <AdviceList title="Perlu ditingkatkan" items={aspects.improve} color="#B45309" />
+            <AdviceList title="Potensi untuk dipertahankan dan dieksplorasi lebih dalam" items={aspects.keep} color="#047857" />
+          </View>
+        ) : null}
+
+        <Text style={s.closing}>
+          {clip(pdfText(thankYouMessage), 700)}{" "}
+          <Text style={{ fontFamily: "Helvetica-Bold", color: ipf.passed ? "#047857" : "#B91C1C" }}>
+            {pdfText(ipf.passed ? IPF_PASSED_MESSAGE : IPF_FAILED_MESSAGE)}
+          </Text>
+        </Text>
 
         <View style={s.sign}>
           <Text>Surabaya, {dateId(final?.finalizedAt ?? generatedAt)}</Text>

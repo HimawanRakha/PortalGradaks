@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { isRaportPublicCheckEnabled } from "@/lib/scoring/raport-public";
 
 export const metadata: Metadata = { title: "Cek Raport Maba" };
 
@@ -19,6 +20,31 @@ export const metadata: Metadata = { title: "Cek Raport Maba" };
 // PSDM finalization; the snapshot (once it exists) only adds the "official,
 // frozen" banner on top.
 export default async function CekRaportPage({ searchParams }: { searchParams: Promise<{ nrp?: string }> }) {
+  // Closed by PSDM from Master Data > Pengaturan (e.g. while finalizing): no lookup at all.
+  if (!(await isRaportPublicCheckEnabled())) {
+    return (
+      <div className="relative min-h-svh bg-muted/40 p-4">
+        <div className="absolute right-4 top-4">
+          <ThemeToggle />
+        </div>
+        <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 py-8">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <img src="/BEMFTEIC.png" alt="Logo BEM FTEIC" className="size-16 object-contain" />
+            <h1 className="text-lg font-semibold">Cek Raport Maba</h1>
+            <p className="text-sm text-muted-foreground">GRADAKS 2026 — PSDM BEM FTEIC</p>
+          </div>
+          <Alert className="w-full max-w-sm">
+            <Lock className="size-4" />
+            <AlertTitle className="font-semibold">Cek Raport dinonaktifkan sementara</AlertTitle>
+            <AlertDescription className="text-xs">
+              PSDM BEM FTEIC sedang melakukan finalisasi raport. Halaman ini akan dibuka kembali setelah raport final siap.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
+
   const { nrp: rawNrp } = await searchParams;
   const nrp = rawNrp?.trim();
 
@@ -134,7 +160,7 @@ export default async function CekRaportPage({ searchParams }: { searchParams: Pr
                 </span>
                 <span className="flex flex-col items-start text-left leading-tight">
                   <span className="text-sm font-semibold">Unduh Raport (PDF)</span>
-                  <span className="text-[11px] font-normal text-white/85">Rekap resmi 1 halaman · siap disimpan & dicetak</span>
+                  <span className="text-[11px] font-normal text-white/85">Rekap resmi · siap disimpan & dicetak</span>
                 </span>
               </Button>
             ) : (

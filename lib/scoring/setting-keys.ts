@@ -19,7 +19,17 @@ export const SETTING_KEYS = {
   recapPredicateThresholds: "recap.predicateThresholds",
   raportThankYouMessage: "raport.thankYouMessage",
   skillComponentWeights: "weights.skillComponents",
+  raportPublicCheckEnabled: "raport.publicCheckEnabled",
+  /** NRPs that did NOT pass IPF (Inclenation), as decided by PSDM — see lib/scoring/ipf.ts. */
+  ipfFailedNrps: "raport.ipfFailedNrps",
 } as const;
+
+/**
+ * The public /cek-raport page (and its PDF) is OFF unless this setting is
+ * explicitly true — so it stays closed while PSDM prepares finalization and
+ * is only opened from Master Data > Pengaturan when results are ready.
+ */
+export const DEFAULT_RAPORT_PUBLIC_CHECK_ENABLED = false;
 
 export const DEFAULT_TEMU_ABSENCE_THRESHOLD = 2;
 export const DEFAULT_KEGIATAN_BESAR_ABSENCE_THRESHOLD = 2;

@@ -5,6 +5,9 @@ import { computeScores, type ComputedScores } from "@/lib/scoring/calculate";
 import { getRecapSettings } from "@/lib/scoring/recap";
 import { SETTING_KEYS, DEFAULT_RAPORT_THANK_YOU_MESSAGE } from "@/lib/scoring/setting-keys";
 import { RaportPdf } from "@/lib/raport-pdf";
+import { buildAspectRecommendations } from "@/lib/scoring/aspect-recommendations";
+import { ipfStatus, parseIpfFailedNrps } from "@/lib/scoring/ipf";
+import { isRaportPublicCheckEnabled } from "@/lib/scoring/raport-public";
 
 /**
  * Public, NRP-keyed PDF raport — the same exposure as the /cek-raport page
@@ -16,6 +19,9 @@ import { RaportPdf } from "@/lib/raport-pdf";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const nrp = url.searchParams.get("nrp")?.trim();
+  if (!(await isRaportPublicCheckEnabled())) {
+    return new Response("Cek Raport sedang dinonaktifkan sementara oleh PSDM BEM FTEIC.", { status: 503 });
+  }
   if (!nrp) return new Response("NRP wajib diisi.", { status: 400 });
 
   const student = await prisma.student.findFirst({
@@ -32,9 +38,10 @@ export async function GET(request: Request) {
   // Snapshots written before the attendance-based formula lack these fields.
   const computed = frozen?.personal?.components && frozen.attendance ? frozen : await computeScores(student.id);
 
-  const [recapSettings, thankYouSetting, logo] = await Promise.all([
+  const [recapSettings, thankYouSetting, ipfSetting, logo] = await Promise.all([
     getRecapSettings(),
     prisma.setting.findUnique({ where: { key: SETTING_KEYS.raportThankYouMessage } }),
+    prisma.setting.findUnique({ where: { key: SETTING_KEYS.ipfFailedNrps } }),
     fetch(new URL("/BEMFTEIC.png", url.origin))
       .then(async (r) => (r.ok ? Buffer.from(await r.arrayBuffer()) : null))
       .catch(() => null),
@@ -60,6 +67,9 @@ export async function GET(request: Request) {
         }
       : null,
     thankYouMessage,
+    // Not-aggregated maba keep only the fixed data-insufficient text, as before.
+    aspects: snapshot.dataInsufficient ? null : buildAspectRecommendations(computed, recapSettings.thresholds),
+    ipf: ipfStatus(computed, student.nrp, parseIpfFailedNrps(ipfSetting?.value)),
     thresholds: recapSettings.thresholds,
     logo,
     generatedAt: new Date(),
