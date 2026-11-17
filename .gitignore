@@ -44,3 +44,6 @@ next-env.d.ts
 
 # local DB backups (contain personal data)
 /backups
+
+# per-HMD report deliverables (contain personal data)
+/laporan-hmd
