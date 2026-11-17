@@ -14,6 +14,7 @@ export default async function RecommendationRulesPage() {
     id: rule.id,
     name: rule.name,
     metric: rule.metric,
+    kind: rule.kind,
     operator: rule.operator,
     value: decimalToNumber(rule.value) ?? 0,
     valueTo: decimalToNumber(rule.valueTo),

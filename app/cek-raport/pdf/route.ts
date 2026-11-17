@@ -5,7 +5,8 @@ import { computeScores, type ComputedScores } from "@/lib/scoring/calculate";
 import { getRecapSettings } from "@/lib/scoring/recap";
 import { SETTING_KEYS, DEFAULT_RAPORT_THANK_YOU_MESSAGE } from "@/lib/scoring/setting-keys";
 import { RaportPdf } from "@/lib/raport-pdf";
-import { buildAspectRecommendations } from "@/lib/scoring/aspect-recommendations";
+import { buildAspectRecommendations, type AspectRecommendations } from "@/lib/scoring/aspect-recommendations";
+import { getActiveRecommendationRulesForEvaluation } from "@/lib/scoring/recommendation";
 import { ipfStatus, parseIpfFailedNrps } from "@/lib/scoring/ipf";
 import { isRaportPublicCheckEnabled } from "@/lib/scoring/raport-public";
 
@@ -68,7 +69,10 @@ export async function GET(request: Request) {
       : null,
     thankYouMessage,
     // Not-aggregated maba keep only the fixed data-insufficient text, as before.
-    aspects: snapshot.dataInsufficient ? null : buildAspectRecommendations(computed, recapSettings.thresholds),
+    aspects: snapshot.dataInsufficient
+      ? null
+      : (frozen as { aspectRecommendations?: AspectRecommendations } | undefined)?.aspectRecommendations ??
+        buildAspectRecommendations(computed, await getActiveRecommendationRulesForEvaluation()),
     ipf: ipfStatus(computed, student.nrp, parseIpfFailedNrps(ipfSetting?.value)),
     thresholds: recapSettings.thresholds,
     logo,

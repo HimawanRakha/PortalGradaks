@@ -22,6 +22,7 @@ import { computeScoresForStudents } from "@/lib/scoring/calculate";
 import { SETTING_KEYS, DEFAULT_DATA_INSUFFICIENT_MESSAGE, MANAJERIAL_ASSESSMENT } from "@/lib/scoring/setting-keys";
 import { upsertAttendance, upsertScore } from "@/lib/scoring/upsert";
 import { getActiveRecommendationRulesForEvaluation, evaluateRecommendation } from "@/lib/scoring/recommendation";
+import { buildAspectRecommendations } from "@/lib/scoring/aspect-recommendations";
 
 type ActionResult = { ok: true; summary?: string } | { ok: false; error: string };
 
@@ -632,7 +633,12 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
         description = evaluated.description;
       }
 
-      const breakdown = computed as unknown as Prisma.InputJsonValue;
+      // The "Rekomendasi Pengembangan" lists are frozen with the snapshot too,
+      // so a later rule edit never changes an already-finalized raport.
+      const breakdown = {
+        ...computed,
+        aspectRecommendations: dataInsufficient ? null : buildAspectRecommendations(computed, activeRules),
+      } as unknown as Prisma.InputJsonValue;
 
       await prisma.raportSnapshot.upsert({
         where: { studentId: student.id },

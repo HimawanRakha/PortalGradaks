@@ -1,12 +1,13 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
-import { RuleOperator } from "@/app/generated/prisma/enums";
+import { RecommendationKind, RuleOperator } from "@/app/generated/prisma/enums";
 import type { ComputedScores } from "./calculate";
 
 const FALLBACK_RECOMMENDATION = "Belum ada rekomendasi yang sesuai — hubungi PSDM";
 
 export type RecommendationRuleForEval = {
   metric: string;
+  kind: RecommendationKind;
   operator: RuleOperator;
   value: unknown;
   valueTo: unknown;
@@ -19,7 +20,7 @@ export async function getActiveRecommendationRulesForEvaluation(): Promise<Recom
   return prisma.recommendationRule.findMany({
     where: { active: true },
     orderBy: { order: "asc" },
-    select: { metric: true, operator: true, value: true, valueTo: true, recommendationText: true, descriptionText: true, order: true },
+    select: { metric: true, kind: true, operator: true, value: true, valueTo: true, recommendationText: true, descriptionText: true, order: true },
   });
 }
 
@@ -51,12 +52,21 @@ export function resolveMetric(computed: ComputedScores, metric: string): number 
       return computed.skill.categories.find((c) => c.code === "MB")?.score ?? null;
     case "SKILL_KEWIRAUSAHAAN":
       return computed.skill.categories.find((c) => c.code === "KW")?.score ?? null;
+    case "SUB_A1":
+    case "SUB_A2":
+    case "SUB_B1":
+    case "SUB_B2":
+    case "SUB_C1":
+    case "SUB_C2": {
+      const code = `${metric[4]}.${metric[5]}`;
+      return computed.personal.groups.flatMap((g) => g.subNilai).find((x) => x.code === code)?.score ?? null;
+    }
     default:
       return null;
   }
 }
 
-function matchesOperator(actual: number, operator: RuleOperator, value: number, valueTo: number | null): boolean {
+export function matchesOperator(actual: number, operator: RuleOperator, value: number, valueTo: number | null): boolean {
   switch (operator) {
     case RuleOperator.LT:
       return actual < value;
@@ -97,6 +107,8 @@ export function evaluateRecommendation(
   const descriptionParts: string[] = [];
 
   for (const rule of rules) {
+    // IMPROVE/KEEP rules feed the "Rekomendasi Pengembangan" lists instead (aspect-recommendations.ts).
+    if (rule.kind !== RecommendationKind.HEADLINE) continue;
     const actual = resolveMetric(computed, rule.metric);
     if (actual === null) continue;
 

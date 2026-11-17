@@ -779,6 +779,23 @@ enum RecommendationMetric {
   SKILL_KEILMIAHAN
   SKILL_MINAT_BAKAT
   SKILL_KEWIRAUSAHAAN
+  // Individual Sub-Nilai of Penilaian Materi (A.1 ... C.2)
+  SUB_A1
+  SUB_A2
+  SUB_B1
+  SUB_B2
+  SUB_C1
+  SUB_C2
+}
+
+/// Where a matching rule's text lands on the raport:
+/// HEADLINE = the recommendation label/description narrative (original behaviour);
+/// IMPROVE / KEEP = one item in the "Rekomendasi Pengembangan" lists
+/// ("Perlu ditingkatkan" / "Potensi untuk dipertahankan dan dieksplorasi").
+enum RecommendationKind {
+  HEADLINE
+  IMPROVE
+  KEEP
 }
 
 enum RuleOperator {
@@ -802,6 +819,7 @@ model RecommendationRule {
   id                 String               @id @default(cuid())
   name               String
   metric             RecommendationMetric
+  kind               RecommendationKind   @default(HEADLINE)
   operator           RuleOperator
   value              Decimal              @db.Decimal(5, 2)
   valueTo            Decimal?             @db.Decimal(5, 2) // only meaningful when operator = BETWEEN

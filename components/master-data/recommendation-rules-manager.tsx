@@ -3,7 +3,8 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Loader2, Plus, Edit2, Trash2, Info } from "lucide-react";
-import { RecommendationMetric, RuleOperator } from "@/app/generated/prisma/enums";
+import { RecommendationKind, RecommendationMetric, RuleOperator } from "@/app/generated/prisma/enums";
+import { KIND_LABELS, METRIC_LABELS } from "@/lib/scoring/recommendation-labels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,18 +26,6 @@ import {
   deleteRecommendationRuleAction,
 } from "@/app/(dashboard)/admin/master-data/actions";
 
-const METRIC_LABELS: Record<RecommendationMetric, string> = {
-  [RecommendationMetric.PERSONAL_SCORE]: "Nilai Personal (Total)",
-  [RecommendationMetric.SKILL_SCORE]: "Nilai Keahlian (Total)",
-  [RecommendationMetric.PERSONAL_KOLEKTIF]: "Personal — Kolektif (A)",
-  [RecommendationMetric.PERSONAL_KOLABORASI]: "Personal — Kolaborasi (B)",
-  [RecommendationMetric.PERSONAL_KONTRIBUSI]: "Personal — Kontribusi (C)",
-  [RecommendationMetric.SKILL_MANAJERIAL]: "Keahlian — Manajerial (M)",
-  [RecommendationMetric.SKILL_KEILMIAHAN]: "Keahlian — Keilmiahan (K)",
-  [RecommendationMetric.SKILL_MINAT_BAKAT]: "Keahlian — Minat Bakat (MB)",
-  [RecommendationMetric.SKILL_KEWIRAUSAHAAN]: "Keahlian — Kewirausahaan (KW)",
-};
-
 const OPERATOR_LABELS: Record<RuleOperator, string> = {
   [RuleOperator.LT]: "< (Kurang dari)",
   [RuleOperator.LTE]: "≤ (Kurang dari atau sama dengan)",
@@ -56,6 +45,7 @@ export type RecommendationRuleData = {
   id: string;
   name: string;
   metric: RecommendationMetric;
+  kind: RecommendationKind;
   operator: RuleOperator;
   value: number;
   valueTo: number | null;
@@ -67,12 +57,19 @@ export type RecommendationRuleData = {
 
 export function RecommendationRulesManager({ initialRules }: { initialRules: RecommendationRuleData[] }) {
   const [rules] = useState<RecommendationRuleData[]>(initialRules);
+  const [kindFilter, setKindFilter] = useState<RecommendationKind | "ALL">("ALL");
+  const kindOrder = Object.values(RecommendationKind) as RecommendationKind[];
+  const shownRules = rules
+    .filter((r) => kindFilter === "ALL" || r.kind === kindFilter)
+    .sort((a, b) => kindOrder.indexOf(a.kind) - kindOrder.indexOf(b.kind) || a.order - b.order);
   const [pending, startTransition] = useTransition();
 
   const [isOpen, setIsOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [metric, setMetric] = useState<RecommendationMetric>(RecommendationMetric.PERSONAL_SCORE);
+  const [kind, setKind] = useState<RecommendationKind>(RecommendationKind.HEADLINE);
+  const isHeadline = kind === RecommendationKind.HEADLINE;
   const [operator, setOperator] = useState<RuleOperator>(RuleOperator.LT);
   const [value, setValue] = useState("");
   const [valueTo, setValueTo] = useState("");
@@ -86,6 +83,7 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
       setEditId(rule.id);
       setName(rule.name);
       setMetric(rule.metric);
+      setKind(rule.kind);
       setOperator(rule.operator);
       setValue(String(rule.value));
       setValueTo(rule.valueTo !== null ? String(rule.valueTo) : "");
@@ -97,6 +95,7 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
       setEditId(null);
       setName("");
       setMetric(RecommendationMetric.PERSONAL_SCORE);
+      setKind(kindFilter === "ALL" ? RecommendationKind.HEADLINE : kindFilter);
       setOperator(RuleOperator.LT);
       setValue("");
       setValueTo("");
@@ -117,8 +116,12 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
       toast.error("Operator 'Di antara' wajib mengisi nilai batas atas.");
       return;
     }
-    if (!recommendationText.trim() && !descriptionText.trim()) {
+    if (isHeadline && !recommendationText.trim() && !descriptionText.trim()) {
       toast.error("Isi minimal salah satu dari Teks Rekomendasi atau Teks Deskripsi.");
+      return;
+    }
+    if (!isHeadline && !descriptionText.trim()) {
+      toast.error("Teks saran wajib diisi untuk rule Rekomendasi Pengembangan.");
       return;
     }
 
@@ -126,10 +129,11 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
       const data = {
         name,
         metric,
+        kind,
         operator,
         value: Number(value),
         valueTo: operator === RuleOperator.BETWEEN ? Number(valueTo) : null,
-        recommendationText: recommendationText.trim() || null,
+        recommendationText: isHeadline ? recommendationText.trim() || null : null,
         descriptionText: descriptionText.trim() || null,
         order: Number(order),
         active,
@@ -167,8 +171,10 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
         <div>
           <h3 className="text-lg font-medium">Rule Rekomendasi & Deskripsi Otomatis</h3>
           <p className="text-xs text-muted-foreground">
-            Setiap rule diuji terhadap Nilai Personal/Keahlian maba saat finalisasi. Rule pertama (urutan terkecil) yang cocok dan mengisi
-            Teks Rekomendasi menjadi label utama raport; semua rule yang cocok dan mengisi Teks Deskripsi digabung menjadi narasi lengkap.
+            Setiap rule diuji terhadap nilai maba saat finalisasi. Jenis &ldquo;Label &amp; Deskripsi Raport&rdquo;: rule pertama yang cocok dan
+            mengisi Teks Rekomendasi menjadi label utama raport, dan semua Teks Deskripsi yang cocok digabung menjadi narasi. Jenis
+            &ldquo;Pengembangan&rdquo;: setiap rule yang cocok menjadi satu butir saran pada bagian Rekomendasi Pengembangan di PDF raport
+            (&ldquo;Perlu ditingkatkan&rdquo; atau &ldquo;Potensi untuk dipertahankan dan dieksplorasi lebih dalam&rdquo;).
           </p>
         </div>
         <Button onClick={() => openModal()} size="sm">
@@ -187,9 +193,17 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
         </CardContent>
       </Card>
 
+      <div className="flex flex-wrap gap-1.5">
+        {(["ALL", ...kindOrder] as const).map((k) => (
+          <Button key={k} size="xs" variant={kindFilter === k ? "default" : "outline"} onClick={() => setKindFilter(k)}>
+            {k === "ALL" ? "Semua" : KIND_LABELS[k]} ({k === "ALL" ? rules.length : rules.filter((r) => r.kind === k).length})
+          </Button>
+        ))}
+      </div>
+
       <Card>
         <CardContent className="p-0">
-          {rules.length === 0 ? (
+          {shownRules.length === 0 ? (
             <p className="text-center py-8 text-xs text-muted-foreground">Belum ada rule rekomendasi.</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
@@ -198,6 +212,7 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
                   <tr className="bg-muted/40 border-b text-muted-foreground font-medium">
                     <th className="p-3">Urutan</th>
                     <th className="p-3">Nama</th>
+                    <th className="p-3">Jenis</th>
                     <th className="p-3">Kondisi</th>
                     <th className="p-3">Rekomendasi</th>
                     <th className="p-3">Deskripsi</th>
@@ -206,10 +221,11 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {rules.map((rule) => (
+                  {shownRules.map((rule) => (
                     <tr key={rule.id} className={`hover:bg-muted/30 ${!rule.active ? "opacity-60" : ""}`}>
                       <td className="p-3 font-mono">{rule.order}</td>
                       <td className="p-3 font-semibold text-foreground">{rule.name}</td>
+                      <td className="p-3 whitespace-nowrap text-muted-foreground">{KIND_LABELS[rule.kind]}</td>
                       <td className="p-3 font-mono text-[11px] text-muted-foreground">
                         {formatCondition(rule.metric, rule.operator, rule.value, rule.valueTo)}
                       </td>
@@ -262,6 +278,20 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
               <Input id="rule-name" placeholder="Personal rendah" value={name} onChange={(e) => setName(e.target.value)} className="h-8" />
             </div>
 
+            <div className="grid gap-1">
+              <Label htmlFor="rule-kind">Jenis Rule</Label>
+              <Select value={kind} onValueChange={(val) => val && setKind(val as RecommendationKind)}>
+                <SelectTrigger id="rule-kind" className="h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {kindOrder.map((k) => (
+                    <SelectItem key={k} value={k}>{KIND_LABELS[k]}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1">
                 <Label htmlFor="rule-metric">Metrik yang Diuji</Label>
@@ -304,6 +334,7 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
               )}
             </div>
 
+            {isHeadline && (
             <div className="grid gap-1">
               <Label htmlFor="rule-rec">Teks Rekomendasi (label singkat — opsional)</Label>
               <Input
@@ -317,9 +348,10 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
                 Kosongkan jika rule ini hanya menambahkan narasi (lihat di bawah), tidak menentukan label utama raport.
               </span>
             </div>
+            )}
 
             <div className="grid gap-1">
-              <Label htmlFor="rule-desc">Teks Deskripsi (narasi — opsional)</Label>
+              <Label htmlFor="rule-desc">{isHeadline ? "Teks Deskripsi (narasi — opsional)" : "Teks Saran untuk Maba (wajib)"}</Label>
               <Textarea
                 id="rule-desc"
                 placeholder="Menunjukkan kebutuhan pendampingan lebih lanjut pada aspek ini."

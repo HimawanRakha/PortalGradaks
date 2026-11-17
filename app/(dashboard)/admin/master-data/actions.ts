@@ -5,7 +5,7 @@ import { unstable_rethrow } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "@/lib/auth/dal";
-import { Role, ParameterType, InputMethod, SessionMode, RecommendationMetric, RuleOperator } from "@/app/generated/prisma/enums";
+import { Role, ParameterType, InputMethod, SessionMode, RecommendationMetric, RecommendationKind, RuleOperator } from "@/app/generated/prisma/enums";
 import { Prisma } from "@/app/generated/prisma/client";
 
 type ActionResult = { ok: true } | { ok: false; error: string };
@@ -628,6 +628,7 @@ export async function updateSettingsAction(settings: Record<string, Prisma.Input
 type RecommendationRuleInput = {
   name: string;
   metric: RecommendationMetric;
+  kind?: RecommendationKind;
   operator: RuleOperator;
   value: number;
   valueTo?: number | null;
@@ -642,7 +643,9 @@ function validateRuleInput(data: RecommendationRuleInput): string | null {
   if (data.operator === RuleOperator.BETWEEN && (data.valueTo === null || data.valueTo === undefined)) {
     return "Operator BETWEEN wajib mengisi nilai batas atas (valueTo).";
   }
-  if (!data.recommendationText?.trim() && !data.descriptionText?.trim()) {
+  if ((data.kind ?? RecommendationKind.HEADLINE) !== RecommendationKind.HEADLINE) {
+    if (!data.descriptionText?.trim()) return "Teks saran wajib diisi untuk rule Rekomendasi Pengembangan.";
+  } else if (!data.recommendationText?.trim() && !data.descriptionText?.trim()) {
     return "Isi minimal salah satu dari teks rekomendasi atau teks deskripsi.";
   }
   return null;
@@ -658,10 +661,11 @@ export async function createRecommendationRuleAction(data: RecommendationRuleInp
       data: {
         name: data.name.trim(),
         metric: data.metric,
+        kind: data.kind ?? RecommendationKind.HEADLINE,
         operator: data.operator,
         value: data.value,
         valueTo: data.operator === RuleOperator.BETWEEN ? data.valueTo : null,
-        recommendationText: data.recommendationText?.trim() || null,
+        recommendationText: (data.kind ?? RecommendationKind.HEADLINE) === RecommendationKind.HEADLINE ? data.recommendationText?.trim() || null : null,
         descriptionText: data.descriptionText?.trim() || null,
         order: Number(data.order),
         active: data.active ?? true,
@@ -686,10 +690,11 @@ export async function updateRecommendationRuleAction(id: string, data: Recommend
       data: {
         name: data.name.trim(),
         metric: data.metric,
+        kind: data.kind ?? RecommendationKind.HEADLINE,
         operator: data.operator,
         value: data.value,
         valueTo: data.operator === RuleOperator.BETWEEN ? data.valueTo : null,
-        recommendationText: data.recommendationText?.trim() || null,
+        recommendationText: (data.kind ?? RecommendationKind.HEADLINE) === RecommendationKind.HEADLINE ? data.recommendationText?.trim() || null : null,
         descriptionText: data.descriptionText?.trim() || null,
         order: Number(data.order),
         active: data.active ?? true,
