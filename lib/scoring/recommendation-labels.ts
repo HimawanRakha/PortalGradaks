@@ -39,7 +39,8 @@ export const METRIC_RAPORT_LABELS: Record<RecommendationMetric, string> = {
 };
 
 export const KIND_LABELS: Record<RecommendationKind, string> = {
-  [RecommendationKind.HEADLINE]: "Label & Deskripsi Raport",
+  [RecommendationKind.TOP_SKILL]: "Kesimpulan: Bidang Keahlian Tertinggi",
+  [RecommendationKind.HEADLINE]: "Kesimpulan: Hasil Nilai Personal",
   [RecommendationKind.IMPROVE]: "Pengembangan: Perlu Ditingkatkan",
   [RecommendationKind.KEEP]: "Pengembangan: Pertahankan & Eksplor",
 };

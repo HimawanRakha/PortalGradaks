@@ -2,6 +2,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { RecommendationKind, RuleOperator } from "@/app/generated/prisma/enums";
 import type { ComputedScores } from "./calculate";
+import type { K1Interest } from "./k1";
 
 const FALLBACK_RECOMMENDATION = "Belum ada rekomendasi yang sesuai — hubungi PSDM";
 
@@ -87,47 +88,91 @@ export function matchesOperator(actual: number, operator: RuleOperator, value: n
   }
 }
 
+const SKILL_METRIC: Record<string, string> = { M: "SKILL_MANAJERIAL", K: "SKILL_KEILMIAHAN", MB: "SKILL_MINAT_BAKAT", KW: "SKILL_KEWIRAUSAHAAN" };
+const fmt1 = (v: number) => v.toFixed(1).replace(".", ",");
+/** "A", "A dan B", "A, B, dan C". */
+const joinId = (xs: string[]) => (xs.length <= 2 ? xs.join(" dan ") : `${xs.slice(0, -1).join(", ")}, dan ${xs[xs.length - 1]}`);
+
+function ruleMatches(computed: ComputedScores, rule: RecommendationRuleForEval): boolean {
+  const actual = resolveMetric(computed, rule.metric);
+  if (actual === null) return false;
+  const value = Number(rule.value);
+  const valueTo = rule.valueTo === null || rule.valueTo === undefined ? null : Number(rule.valueTo);
+  if (Number.isNaN(value) || (valueTo !== null && Number.isNaN(valueTo))) return false;
+  return matchesOperator(actual, rule.operator, value, valueTo);
+}
+
 /**
- * Evaluates every active rule against one student's computed scores. Never
- * throws for any rule/metric/student combination — finalizeRaportsAction's
+ * Builds the raport's conclusion ("hasil selama pengembangan"). Never throws
+ * for any rule/metric/student combination — finalizeRaportsAction's
  * per-student loop has no per-student try/catch, so one bad rule or one
- * null sub-score must not abort the whole batch. A rule whose metric
- * resolves to null, or whose numeric fields are malformed, simply doesn't
- * match; it never surfaces as an error.
+ * null sub-score must not abort the whole batch.
  *
- * The first matching rule (in `order`) with a non-null recommendationText
- * becomes the headline `recommendation`. Every matching rule's
- * descriptionText (if set) concatenates in order into `description`.
+ * - recommendation (the raport's headline) = the maba's top bidang keahlian
+ *   by MENTOR EVALUATION (ties broken by the bidang score), e.g. "Bidang
+ *   Keilmiahan". The mentor evaluation is used rather than the bidang score
+ *   because the score's 20% kegiatan part favours Manajerial structurally
+ *   (Penilaian Manajerial vs optional Kegiatan Keahlian).
+ * - description = (1) the TOP_SKILL rule text of that bidang plus a comparison
+ *   with the interest the maba stated in Kuesioner 1 (when usable), then (2) the
+ *   Nilai Personal result: the first matching HEADLINE rule's
+ *   recommendationText as its predikat label plus every matching HEADLINE
+ *   descriptionText. Paragraphs are separated by a blank line.
+ * If no bidang has a score, the headline falls back to the Nilai Personal label.
  */
 export function evaluateRecommendation(
   computed: ComputedScores,
   rules: RecommendationRuleForEval[],
+  k1: K1Interest | null = null,
 ): { recommendation: string; description: string | null } {
-  let recommendation: string | null = null;
-  const descriptionParts: string[] = [];
+  const sorted = [...rules].sort((a, b) => a.order - b.order);
 
-  for (const rule of rules) {
-    // IMPROVE/KEEP rules feed the "Rekomendasi Pengembangan" lists instead (aspect-recommendations.ts).
-    if (rule.kind !== RecommendationKind.HEADLINE) continue;
-    const actual = resolveMetric(computed, rule.metric);
-    if (actual === null) continue;
-
-    const value = Number(rule.value);
-    const valueTo = rule.valueTo === null || rule.valueTo === undefined ? null : Number(rule.valueTo);
-    if (Number.isNaN(value) || (valueTo !== null && Number.isNaN(valueTo))) continue;
-
-    if (!matchesOperator(actual, rule.operator, value, valueTo)) continue;
-
-    if (recommendation === null && rule.recommendationText) {
-      recommendation = rule.recommendationText;
+  // (1) Top bidang keahlian: mentor evaluation first, bidang score as tie-break.
+  const scored = computed.skill.categories.filter((c) => c.score !== null) as Array<(typeof computed.skill.categories)[number] & { score: number }>;
+  const mentor = (c: (typeof scored)[number]) => c.mentorScore ?? -1;
+  const bestMentor = scored.length ? Math.max(...scored.map(mentor)) : null;
+  const byMentor = bestMentor === null ? [] : scored.filter((c) => Math.abs(mentor(c) - bestMentor) < 1e-9);
+  const bestScore = byMentor.length ? Math.max(...byMentor.map((c) => c.score)) : null;
+  const top = bestScore === null ? [] : byMentor.filter((c) => Math.abs(c.score - bestScore) < 1e-9);
+  const parts: string[] = [];
+  if (top.length > 0) {
+    const names = top.map((c) => c.label);
+    const intro =
+      bestMentor !== null && bestMentor >= 0
+        ? `Berdasarkan evaluasi mentor, potensi utama Anda berada pada bidang ${joinId(names)}.`
+        : `Potensi utama Anda berada pada bidang ${joinId(names)} (nilai ${fmt1(bestScore!)}).`;
+    const texts = top
+      .map((c) => sorted.find((r) => r.kind === RecommendationKind.TOP_SKILL && r.metric === SKILL_METRIC[c.code] && ruleMatches(computed, r)))
+      .map((r) => r?.descriptionText?.trim())
+      .filter((t): t is string => !!t);
+    // Comparison with the interest stated at the start of the program (Kuesioner 1).
+    if (k1?.valid && k1.minatDominan.length > 0) {
+      texts.push(
+        k1.minatDominan.some((d) => names.includes(d))
+          ? "Hal ini sejalan dengan minat yang Anda nyatakan pada Kuesioner 1."
+          : `Pada awal rangkaian (Kuesioner 1), Anda menyatakan minat tertinggi pada bidang ${joinId(k1.minatDominan)}; bidang tersebut juga dapat Anda eksplorasi lebih lanjut.`,
+      );
     }
-    if (rule.descriptionText) {
-      descriptionParts.push(rule.descriptionText);
-    }
+    parts.push([intro, ...texts].join(" "));
   }
 
+  // (2) Nilai Personal result.
+  let personalLabel: string | null = null;
+  const personalTexts: string[] = [];
+  for (const rule of sorted) {
+    if (rule.kind !== RecommendationKind.HEADLINE || !ruleMatches(computed, rule)) continue;
+    if (personalLabel === null && rule.recommendationText) personalLabel = rule.recommendationText;
+    if (rule.descriptionText?.trim()) personalTexts.push(rule.descriptionText.trim());
+  }
+  if (personalLabel || personalTexts.length) {
+    const np = computed.personal.score;
+    const head = `Hasil pengembangan personal${np === null ? "" : ` (Nilai Personal ${fmt1(np)})`}${personalLabel ? `: ${personalLabel}.` : ":"}`;
+    parts.push([head, ...personalTexts].join(" "));
+  }
+
+  const recommendation = top.length > 0 ? `Bidang ${joinId(top.map((c) => c.label))}` : personalLabel;
   return {
     recommendation: recommendation ?? FALLBACK_RECOMMENDATION,
-    description: descriptionParts.length > 0 ? descriptionParts.join("\n\n") : null,
+    description: parts.length > 0 ? parts.join("\n\n") : null,
   };
 }

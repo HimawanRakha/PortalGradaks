@@ -18,7 +18,7 @@ export function buildAspectRecommendations(computed: ComputedScores, rules: Reco
   const improve: AspectAdvice[] = [];
   const keep: AspectAdvice[] = [];
   for (const rule of [...rules].sort((a, b) => a.order - b.order)) {
-    if (rule.kind === RecommendationKind.HEADLINE || !rule.descriptionText?.trim()) continue;
+    if ((rule.kind !== RecommendationKind.IMPROVE && rule.kind !== RecommendationKind.KEEP) || !rule.descriptionText?.trim()) continue;
     const score = resolveMetric(computed, rule.metric);
     if (score === null) continue;
     const value = Number(rule.value);

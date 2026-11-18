@@ -796,6 +796,9 @@ enum RecommendationKind {
   HEADLINE
   IMPROVE
   KEEP
+  /// Text for one bidang keahlian, used when it is the maba's highest-scoring bidang:
+  /// it names the raport's recommendation and opens the conclusion.
+  TOP_SKILL
 }
 
 enum RuleOperator {

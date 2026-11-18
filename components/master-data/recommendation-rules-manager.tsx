@@ -121,7 +121,11 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
       return;
     }
     if (!isHeadline && !descriptionText.trim()) {
-      toast.error("Teks saran wajib diisi untuk rule Rekomendasi Pengembangan.");
+      toast.error("Teks wajib diisi untuk rule jenis ini.");
+      return;
+    }
+    if (kind === RecommendationKind.TOP_SKILL && !metric.startsWith("SKILL_") ) {
+      toast.error("Rule Bidang Keahlian Tertinggi harus memakai metrik salah satu bidang keahlian.");
       return;
     }
 
@@ -171,8 +175,10 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
         <div>
           <h3 className="text-lg font-medium">Rule Rekomendasi & Deskripsi Otomatis</h3>
           <p className="text-xs text-muted-foreground">
-            Setiap rule diuji terhadap nilai maba saat finalisasi. Jenis &ldquo;Label &amp; Deskripsi Raport&rdquo;: rule pertama yang cocok dan
-            mengisi Teks Rekomendasi menjadi label utama raport, dan semua Teks Deskripsi yang cocok digabung menjadi narasi. Jenis
+            Setiap rule diuji terhadap nilai maba saat finalisasi. Kotak kesimpulan raport berjudul bidang keahlian dengan evaluasi mentor tertinggi
+            (seri ditentukan nilai bidang) dan dibandingkan dengan minat dominan Kuesioner 1 maba (teksnya dari rule &ldquo;Kesimpulan: Bidang Keahlian Tertinggi&rdquo; bidang tersebut), lalu diikuti hasil Nilai Personal: Teks
+            Rekomendasi rule &ldquo;Kesimpulan: Hasil Nilai Personal&rdquo; pertama yang cocok menjadi predikatnya dan semua Teks Deskripsi
+            yang cocok digabung. Jenis
             &ldquo;Pengembangan&rdquo;: setiap rule yang cocok menjadi satu butir saran pada bagian Rekomendasi Pengembangan di PDF raport
             (&ldquo;Perlu ditingkatkan&rdquo; atau &ldquo;Potensi untuk dipertahankan dan dieksplorasi lebih dalam&rdquo;).
           </p>
@@ -351,7 +357,9 @@ export function RecommendationRulesManager({ initialRules }: { initialRules: Rec
             )}
 
             <div className="grid gap-1">
-              <Label htmlFor="rule-desc">{isHeadline ? "Teks Deskripsi (narasi — opsional)" : "Teks Saran untuk Maba (wajib)"}</Label>
+              <Label htmlFor="rule-desc">
+                {isHeadline ? "Teks Deskripsi (narasi — opsional)" : kind === RecommendationKind.TOP_SKILL ? "Deskripsi Potensi Bidang (wajib)" : "Teks Saran untuk Maba (wajib)"}
+              </Label>
               <Textarea
                 id="rule-desc"
                 placeholder="Menunjukkan kebutuhan pendampingan lebih lanjut pada aspek ini."

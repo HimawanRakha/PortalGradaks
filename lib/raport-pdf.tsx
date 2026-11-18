@@ -97,10 +97,12 @@ function Row({ cells, header, last }: { cells: Array<{ text: string; style: Styl
   );
 }
 
-function AdviceList({ title, items, color }: { title: string; items: AspectRecommendations["improve"]; color: string }) {
+function AdviceList({ title, items, color, heading }: { title: string; items: AspectRecommendations["improve"]; color: string; heading?: string }) {
   if (items.length === 0) return null;
   return (
+    // The section heading travels with its first list so it is never stranded at a page bottom.
     <View wrap={false}>
+      {heading ? <Text style={s.sectionTitle}>{heading}</Text> : null}
       <Text style={[s.recoTitle, { color }]}>{title}</Text>
       {items.map((a) => (
         <View key={a.code} style={s.recoItem}>
@@ -259,14 +261,18 @@ export function RaportPdf({ student, computed, final, thankYouMessage, aspects, 
 
         <View style={[s.status, { borderColor: statusColor }]}>
           <Text style={[s.statusTitle, { color: statusColor }]}>{statusTitle}</Text>
-          {statusBody ? <Text>{clip(statusBody, 600)}</Text> : null}
+          {statusBody ? <Text>{clip(statusBody, 1400)}</Text> : null}
         </View>
 
         {aspects && (aspects.improve.length > 0 || aspects.keep.length > 0) ? (
           <View style={s.section}>
-            <Text style={s.sectionTitle}>Rekomendasi Pengembangan</Text>
-            <AdviceList title="Perlu ditingkatkan" items={aspects.improve} color="#B45309" />
-            <AdviceList title="Potensi untuk dipertahankan dan dieksplorasi lebih dalam" items={aspects.keep} color="#047857" />
+            <AdviceList heading="Rekomendasi Pengembangan" title="Perlu ditingkatkan" items={aspects.improve} color="#B45309" />
+            <AdviceList
+              heading={aspects.improve.length === 0 ? "Rekomendasi Pengembangan" : undefined}
+              title="Potensi untuk dipertahankan dan dieksplorasi lebih dalam"
+              items={aspects.keep}
+              color="#047857"
+            />
           </View>
         ) : null}
 

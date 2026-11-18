@@ -644,7 +644,10 @@ function validateRuleInput(data: RecommendationRuleInput): string | null {
     return "Operator BETWEEN wajib mengisi nilai batas atas (valueTo).";
   }
   if ((data.kind ?? RecommendationKind.HEADLINE) !== RecommendationKind.HEADLINE) {
-    if (!data.descriptionText?.trim()) return "Teks saran wajib diisi untuk rule Rekomendasi Pengembangan.";
+    if (!data.descriptionText?.trim()) return "Teks wajib diisi untuk rule jenis ini.";
+    if (data.kind === RecommendationKind.TOP_SKILL && !["SKILL_MANAJERIAL", "SKILL_KEILMIAHAN", "SKILL_MINAT_BAKAT", "SKILL_KEWIRAUSAHAAN"].includes(data.metric)) {
+      return "Rule Bidang Keahlian Tertinggi harus memakai metrik salah satu bidang keahlian.";
+    }
   } else if (!data.recommendationText?.trim() && !data.descriptionText?.trim()) {
     return "Isi minimal salah satu dari teks rekomendasi atau teks deskripsi.";
   }

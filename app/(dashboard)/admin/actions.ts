@@ -23,6 +23,7 @@ import { SETTING_KEYS, DEFAULT_DATA_INSUFFICIENT_MESSAGE, MANAJERIAL_ASSESSMENT 
 import { upsertAttendance, upsertScore } from "@/lib/scoring/upsert";
 import { getActiveRecommendationRulesForEvaluation, evaluateRecommendation } from "@/lib/scoring/recommendation";
 import { buildAspectRecommendations } from "@/lib/scoring/aspect-recommendations";
+import { parseK1Interest } from "@/lib/scoring/k1";
 
 type ActionResult = { ok: true; summary?: string } | { ok: false; error: string };
 
@@ -585,6 +586,8 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
 
     const studentIds = students.map((s) => s.id);
     const verifications = await prisma.verification.findMany({ where: { studentId: { in: studentIds } } });
+    const k1Rows = await prisma.questionnaireStatus.findMany({ where: { code: "K1", studentId: { in: studentIds } }, select: { studentId: true, raw: true } });
+    const k1ByStudent = new Map(k1Rows.map((r) => [r.studentId, parseK1Interest(r.raw)]));
     const verificationsByStudent = new Map<string, typeof verifications>();
     for (const v of verifications) {
       const list = verificationsByStudent.get(v.studentId) ?? [];
@@ -628,7 +631,7 @@ export async function finalizeRaportsAction(): Promise<ActionResult> {
         description = dataInsufficientMessage;
         dataInsufficientCount++;
       } else {
-        const evaluated = evaluateRecommendation(computed, activeRules);
+        const evaluated = evaluateRecommendation(computed, activeRules, k1ByStudent.get(student.id) ?? null);
         recommendation = evaluated.recommendation;
         description = evaluated.description;
       }
