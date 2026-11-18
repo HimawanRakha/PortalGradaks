@@ -13,6 +13,9 @@ import { isRaportPublicCheckEnabled } from "@/lib/scoring/raport-public";
 
 export const metadata: Metadata = { title: "Cek Raport Maba" };
 
+// Per-request only: the page depends on a Settings toggle and live data, never on a build-time snapshot.
+export const dynamic = "force-dynamic";
+
 // Public, unauthenticated lookup (see proxy.ts's "/cek-raport" exemption) — a
 // maba proves nothing beyond knowing their own NRP. Deliberately reuses the
 // same live computeScores() the mentor view uses rather than only reading
