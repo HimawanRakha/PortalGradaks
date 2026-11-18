@@ -53,7 +53,16 @@ export type StudentForRaportView = Prisma.StudentGetPayload<{ include: typeof st
  * mentor view (always live, no banner) and the public raport lookup
  * (adds a finalized-vs-provisional banner) — callers own that framing.
  */
-export function StudentRaportView({ student, computed }: { student: StudentForRaportView; computed: ComputedScores }) {
+export function StudentRaportView({
+  student,
+  computed,
+  final = false,
+}: {
+  student: StudentForRaportView;
+  computed: ComputedScores;
+  /** True once PSDM finalized this raport: `computed` is then the frozen snapshot. */
+  final?: boolean;
+}) {
   const k1 = student.questionnaireStatuses.find((q) => q.code === QuestionnaireCode.K1);
   const k2 = student.questionnaireStatuses.find((q) => q.code === QuestionnaireCode.K2);
   const logbookComplete = student.logbookEntries.filter((e) => e.status === LogbookStatus.LENGKAP).length;
@@ -63,11 +72,13 @@ export function StudentRaportView({ student, computed }: { student: StudentForRa
       <div className="grid grid-cols-1 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Estimasi Nilai Saat Ini</CardTitle>
+            <CardTitle className="text-base">{final ? "Nilai Final" : "Estimasi Nilai Saat Ini"}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-muted-foreground">
-              Dihitung langsung dari data terkini — bukan nilai final. Nilai resmi baru ada setelah finalisasi PSDM.
+              {final
+                ? "Nilai resmi hasil finalisasi PSDM dan tidak lagi berubah."
+                : "Dihitung langsung dari data terkini — bukan nilai final. Nilai resmi baru ada setelah finalisasi PSDM."}
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-muted p-3 text-center">

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { CheckCircle2, FileDown, Lock, TriangleAlert } from "lucide-react";
+import { FileDown, Lock, TriangleAlert } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { computeScores } from "@/lib/scoring/calculate";
+import { computeScores, type ComputedScores } from "@/lib/scoring/calculate";
 import { StudentRaportView, studentRaportInclude } from "@/components/scoring/student-raport-view";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
@@ -63,7 +63,9 @@ export default async function CekRaportPage({ searchParams }: { searchParams: Pr
       })
     : null;
 
-  const computed = student ? await computeScores(student.id) : null;
+  // Once finalized, show the frozen snapshot values (the official result) rather than a live recomputation.
+  const frozen = student?.raportSnapshot?.breakdown as unknown as ComputedScores | undefined;
+  const computed = student ? (frozen?.personal?.components && frozen.attendance ? frozen : await computeScores(student.id)) : null;
 
   return (
     <div className="relative min-h-svh bg-muted/40 p-4">
@@ -122,22 +124,9 @@ export default async function CekRaportPage({ searchParams }: { searchParams: Pr
                 </AlertDescription>
               </Alert>
             ) : student.raportSnapshot ? (
-              <Alert className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
-                <CheckCircle2 className="size-4" />
-                <AlertTitle className="font-semibold">Raport Final — {student.raportSnapshot.recommendation}</AlertTitle>
-                <AlertDescription className="text-xs mt-1 text-emerald-700/90 dark:text-emerald-400/90">
-                  Dibekukan{" "}
-                  {student.raportSnapshot.finalizedAt.toLocaleDateString("id-ID", {
-                    day: "numeric",
-                    month: "long",
-                    year: "numeric",
-                  })}
-                  . Nilai di bawah ini adalah nilai resmi akhir dan tidak lagi berubah.
-                  {student.raportSnapshot.description ? (
-                    <span className="mt-1 block">{student.raportSnapshot.description}</span>
-                  ) : null}
-                </AlertDescription>
-              </Alert>
+              <p className="text-center text-sm font-bold text-foreground">
+                Nilai Anda sudah difinalisasi. Silakan unduh raport Anda.
+              </p>
             ) : (
               <Alert className="w-full">
                 <AlertTitle className="text-sm font-semibold">Belum difinalisasi</AlertTitle>
@@ -178,7 +167,7 @@ export default async function CekRaportPage({ searchParams }: { searchParams: Pr
               </Button>
             )}
 
-            <StudentRaportView student={student} computed={computed} />
+            <StudentRaportView student={student} computed={computed} final={!!student.raportSnapshot} />
           </div>
         ) : null}
       </div>
