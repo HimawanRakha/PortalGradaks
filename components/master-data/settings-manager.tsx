@@ -27,6 +27,7 @@ import {
   DEFAULT_PREDICATE_THRESHOLDS,
   DEFAULT_RAPORT_THANK_YOU_MESSAGE,
   DEFAULT_RAPORT_PUBLIC_CHECK_ENABLED,
+  DEFAULT_UNIT_PUBLIC_CHECK_ENABLED,
 } from "@/lib/scoring/setting-keys";
 
 type SettingData = {
@@ -85,6 +86,9 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
     const v = getSettingValue(SETTING_KEYS.ipfFailedNrps, []);
     return Array.isArray(v) ? v.join("\n") : String(v ?? "");
   });
+  const [unitPublicCheckEnabled, setUnitPublicCheckEnabled] = useState(
+    getSettingValue(SETTING_KEYS.unitPublicCheckEnabled, DEFAULT_UNIT_PUBLIC_CHECK_ENABLED) === true,
+  );
   const [raportPublicCheckEnabled, setRaportPublicCheckEnabled] = useState(
     getSettingValue(SETTING_KEYS.raportPublicCheckEnabled, DEFAULT_RAPORT_PUBLIC_CHECK_ENABLED) === true,
   );
@@ -155,6 +159,7 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
         [SETTING_KEYS.calibrationThreshold]: Number(calibrationThreshold),
         [SETTING_KEYS.damenEnabled]: damenEnabled,
         [SETTING_KEYS.raportPublicCheckEnabled]: raportPublicCheckEnabled,
+        [SETTING_KEYS.unitPublicCheckEnabled]: unitPublicCheckEnabled,
         [SETTING_KEYS.ipfFailedNrps]: ipfFailedNrps.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean),
         [SETTING_KEYS.temuAbsenceThreshold]: Number(temuAbsenceThreshold),
         [SETTING_KEYS.kegiatanBesarAbsenceThreshold]: Number(kegiatanBesarAbsenceThreshold),
@@ -393,6 +398,16 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
               </div>
               <span className="text-[10px] text-muted-foreground">
                 Jika nonaktif, halaman publik Cek Raport dan unduhan PDF raport ditutup sementara untuk seluruh maba.
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2 justify-center items-start border rounded-lg p-3 bg-muted/20">
+              <div className="flex items-center justify-between w-full">
+                <Label htmlFor="cek-unit-toggle" className="font-semibold cursor-pointer">Halaman Cek Status Unit Aktif</Label>
+                <Switch id="cek-unit-toggle" checked={unitPublicCheckEnabled} onCheckedChange={setUnitPublicCheckEnabled} />
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                Jika nonaktif, halaman publik Cek Status Kelengkapan Unit ditutup sementara.
               </span>
             </div>
 

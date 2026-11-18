@@ -20,6 +20,7 @@ export const SETTING_KEYS = {
   raportThankYouMessage: "raport.thankYouMessage",
   skillComponentWeights: "weights.skillComponents",
   raportPublicCheckEnabled: "raport.publicCheckEnabled",
+  unitPublicCheckEnabled: "unit.publicCheckEnabled",
   /** NRPs that did NOT pass IPF (Inclenation), as decided by PSDM — see lib/scoring/ipf.ts. */
   ipfFailedNrps: "raport.ipfFailedNrps",
 } as const;
@@ -30,6 +31,9 @@ export const SETTING_KEYS = {
  * is only opened from Master Data > Pengaturan when results are ready.
  */
 export const DEFAULT_RAPORT_PUBLIC_CHECK_ENABLED = false;
+
+/** Same for the public /cek-unit page (Ketua Unit completeness check): closed unless switched on. */
+export const DEFAULT_UNIT_PUBLIC_CHECK_ENABLED = false;
 
 export const DEFAULT_TEMU_ABSENCE_THRESHOLD = 2;
 export const DEFAULT_KEGIATAN_BESAR_ABSENCE_THRESHOLD = 2;

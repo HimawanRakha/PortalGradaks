@@ -1,7 +1,7 @@
 import "server-only";
 import { connection } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { SETTING_KEYS, DEFAULT_RAPORT_PUBLIC_CHECK_ENABLED } from "./setting-keys";
+import { SETTING_KEYS, DEFAULT_RAPORT_PUBLIC_CHECK_ENABLED, DEFAULT_UNIT_PUBLIC_CHECK_ENABLED } from "./setting-keys";
 
 /** Whether the public Cek Raport page and PDF download are open (Settings toggle). */
 export async function isRaportPublicCheckEnabled(): Promise<boolean> {
@@ -11,4 +11,11 @@ export async function isRaportPublicCheckEnabled(): Promise<boolean> {
   await connection();
   const row = await prisma.setting.findUnique({ where: { key: SETTING_KEYS.raportPublicCheckEnabled } });
   return typeof row?.value === "boolean" ? row.value : DEFAULT_RAPORT_PUBLIC_CHECK_ENABLED;
+}
+
+/** Whether the public Cek Status Unit page is open (Settings toggle); read per request like the one above. */
+export async function isUnitPublicCheckEnabled(): Promise<boolean> {
+  await connection();
+  const row = await prisma.setting.findUnique({ where: { key: SETTING_KEYS.unitPublicCheckEnabled } });
+  return typeof row?.value === "boolean" ? row.value : DEFAULT_UNIT_PUBLIC_CHECK_ENABLED;
 }

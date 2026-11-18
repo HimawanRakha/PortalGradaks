@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CheckCircle2, CircleDashed, Clock, TriangleAlert, XCircle } from "lucide-react";
+import { CheckCircle2, CircleDashed, Clock, Lock, TriangleAlert, XCircle } from "lucide-react";
 import { getUnitChecklist } from "@/lib/scoring/unit-checklist";
 import { UnitReminderButton } from "@/components/public/unit-reminder-button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,14 +8,41 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { isUnitPublicCheckEnabled } from "@/lib/scoring/raport-public";
 
 export const metadata: Metadata = { title: "Cek Status Unit" };
+
+// Per-request only: the page depends on a Settings toggle and live data, never on a build-time snapshot.
+export const dynamic = "force-dynamic";
 
 // Public, unauthenticated lookup for the Ketua Unit maba (see proxy.ts's
 // "/cek-unit" exemption + dedicated status-unit domain). Shows ONLY
 // completeness counts per activity — never any maba's name or score — so
 // knowing a unit code reveals nothing private.
 export default async function CekUnitPage({ searchParams }: { searchParams: Promise<{ unit?: string }> }) {
+  // Closed by PSDM from Master Data > Pengaturan: no lookup at all.
+  if (!(await isUnitPublicCheckEnabled())) {
+    return (
+      <div className="relative min-h-svh bg-muted/40 p-4">
+        <div className="absolute right-4 top-4">
+          <ThemeToggle />
+        </div>
+        <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 py-8">
+          <div className="flex flex-col items-center gap-2 text-center">
+            <img src="/BEMFTEIC.png" alt="Logo BEM FTEIC" className="size-16 object-contain" />
+            <h1 className="text-lg font-semibold">Cek Status Kelengkapan Unit</h1>
+            <p className="text-sm text-muted-foreground">GRADAKS 2026 — PSDM BEM FTEIC</p>
+          </div>
+          <Alert className="w-full max-w-sm">
+            <Lock className="size-4" />
+            <AlertTitle className="font-semibold">Cek Status Unit dinonaktifkan sementara</AlertTitle>
+            <AlertDescription className="text-xs">Halaman ini sedang ditutup oleh PSDM BEM FTEIC.</AlertDescription>
+          </Alert>
+        </div>
+      </div>
+    );
+  }
+
   const { unit: rawUnit } = await searchParams;
   const unitCode = rawUnit?.trim();
   const data = unitCode ? await getUnitChecklist(unitCode) : null;
