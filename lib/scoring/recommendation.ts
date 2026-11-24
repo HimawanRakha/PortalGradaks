@@ -67,7 +67,11 @@ export function resolveMetric(computed: ComputedScores, metric: string): number 
   }
 }
 
-export function matchesOperator(actual: number, operator: RuleOperator, value: number, valueTo: number | null): boolean {
+export function matchesOperator(rawActual: number, operator: RuleOperator, value: number, valueTo: number | null): boolean {
+  // Rule thresholds are stored with 2 decimals (e.g. 70-84.99, then >= 85), so a
+  // score like 84.998 would fall between two ranges and match neither. Truncate
+  // to 2 decimals, which also keeps it on the same side as its predikat.
+  const actual = Math.floor(rawActual * 100 + 1e-9) / 100;
   switch (operator) {
     case RuleOperator.LT:
       return actual < value;
@@ -89,7 +93,8 @@ export function matchesOperator(actual: number, operator: RuleOperator, value: n
 }
 
 const SKILL_METRIC: Record<string, string> = { M: "SKILL_MANAJERIAL", K: "SKILL_KEILMIAHAN", MB: "SKILL_MINAT_BAKAT", KW: "SKILL_KEWIRAUSAHAAN" };
-const fmt1 = (v: number) => v.toFixed(1).replace(".", ",");
+// Truncated (not rounded) so a 84.998 never reads "85,0" next to the "Baik" band it belongs to.
+const fmt1 = (v: number) => (Math.floor(v * 10 + 1e-9) / 10).toFixed(1).replace(".", ",");
 /** "A", "A dan B", "A, B, dan C". */
 const joinId = (xs: string[]) => (xs.length <= 2 ? xs.join(" dan ") : `${xs.slice(0, -1).join(", ")}, dan ${xs[xs.length - 1]}`);
 
