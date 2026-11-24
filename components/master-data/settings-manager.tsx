@@ -438,7 +438,7 @@ export function SettingsManager({ initialSettings }: { initialSettings: SettingD
             </CardTitle>
             <CardDescription className="text-[10px]">
               Maba yang melampaui salah satu ambang ini tetap tampil nilainya di raport, tapi statusnya berubah menjadi &ldquo;Tidak Dapat
-              Diagregasi&rdquo; dan tidak dievaluasi oleh Rule Rekomendasi — datanya diserahkan ke HMD untuk pendampingan lebih lanjut.
+              Diagregasi&rdquo; dan tidak dievaluasi oleh Rule Rekomendasi.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-5 md:grid-cols-2">

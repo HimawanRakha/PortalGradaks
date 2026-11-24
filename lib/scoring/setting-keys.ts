@@ -38,7 +38,7 @@ export const DEFAULT_UNIT_PUBLIC_CHECK_ENABLED = false;
 export const DEFAULT_TEMU_ABSENCE_THRESHOLD = 2;
 export const DEFAULT_KEGIATAN_BESAR_ABSENCE_THRESHOLD = 2;
 export const DEFAULT_DATA_INSUFFICIENT_MESSAGE =
-  "Data Anda tidak dapat diagregasi karena kekurangan kehadiran dan nilai, sehingga tidak masuk ke dalam pengolahan. Seluruh data pengembangan Anda akan diberikan kepada HMD untuk pengembangan lebih lanjut.";
+  "Data Anda tidak dapat diagregasi karena kekurangan kehadiran dan nilai, sehingga tidak masuk ke dalam pengolahan.";
 
 /**
  * Templates for the manual WhatsApp broadcasts (BC) PSDM sends to mentors
@@ -124,8 +124,7 @@ export const RECAP_ASPECTS: Array<{ code: string; label: string; group: string }
 export const DEFAULT_RAPORT_THANK_YOU_MESSAGE =
   "Terima kasih atas partisipasi dan semangat Anda selama rangkaian GRADAKS 2026. Raport ini merangkum perjalanan " +
   "pengembangan Anda, mulai dari kehadiran, keaktifan, hingga penilaian materi, sebagai bahan refleksi untuk terus " +
-  "bertumbuh. Seluruh data pengembangan Anda juga diteruskan kepada Himpunan Mahasiswa Departemen (HMD) sebagai bekal " +
-  "pendampingan selanjutnya. Selamat berproses dan terus berkontribusi untuk FTEIC!";
+  "bertumbuh. Selamat berproses dan terus berkontribusi untuk FTEIC!";
 
 /**
  * Where the imported Penilaian Manajerial (0-100 per maba) is stored: one

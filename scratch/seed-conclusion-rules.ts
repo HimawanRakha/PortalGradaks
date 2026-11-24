@@ -32,7 +32,7 @@ const NEW_RULES = [
     descriptionText: "Perkembangan Anda sudah terlihat, tetapi keterlibatan dan keaktifan dalam kegiatan pembinaan masih perlu ditingkatkan." },
   { name: "Kesimpulan Personal — Perlu Pendampingan", metric: M.PERSONAL_SCORE, kind: K.HEADLINE, operator: O.LT, value: 55, order: 24,
     recommendationText: "Perlu Pendampingan Lanjutan",
-    descriptionText: "Keterlibatan Anda dalam rangkaian pembinaan masih terbatas. Anda disarankan mendapatkan pendampingan lanjutan dari HMD untuk mengoptimalkan perkembangan." },
+    descriptionText: "Keterlibatan Anda dalam rangkaian pembinaan masih terbatas. Anda disarankan mendapatkan pendampingan lanjutan untuk mengoptimalkan perkembangan." },
 ];
 
 async function main() {
